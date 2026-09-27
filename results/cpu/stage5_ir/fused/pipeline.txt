@@ -1,0 +1,42 @@
+Pass Manager with 32 passes:
+builtin.module(
+  convert-tforge-to-linalg,
+  canonicalize{cse-between-iterations=false    max-iterations=10 max-num-rewrites=-1 region-simplify=normal test-convergence=false top-down=true},
+  linalg-fuse-elementwise-ops,
+  canonicalize{cse-between-iterations=false    max-iterations=10 max-num-rewrites=-1 region-simplify=normal test-convergence=false top-down=true},
+  func.func(
+    tforge-tile-and-fuse{tile-k=0 tile-sizes={32,32}}
+  ),
+  canonicalize{cse-between-iterations=false    max-iterations=10 max-num-rewrites=-1 region-simplify=normal test-convergence=false top-down=true},
+  eliminate-empty-tensors,
+  one-shot-bufferize{allow-return-allocs-from-loops=false allow-unknown-ops=false analysis-fuzzer-seed=0 analysis-heuristic=bottom-up buffer-alignment=64 bufferize-function-boundaries=true check-parallel-regions=true copy-before-write=false  dump-alias-sets=false function-boundary-type-conversion=identity-layout-map must-infer-memory-space=false  print-conflicts=false test-analysis-only=false unknown-type-conversion=fully-dynamic-layout-map use-encoding-for-memory-space=false},
+  canonicalize{cse-between-iterations=false    max-iterations=10 max-num-rewrites=-1 region-simplify=normal test-convergence=false top-down=true},
+  buffer-results-to-out-params{add-result-attr=false hoist-dynamic-allocs=false hoist-static-allocs=true modify-public-functions=true},
+  func.func(
+    buffer-loop-hoisting
+  ),
+  expand-realloc{emit-deallocs=false},
+  canonicalize{cse-between-iterations=false    max-iterations=10 max-num-rewrites=-1 region-simplify=normal test-convergence=false top-down=true},
+  ownership-based-buffer-deallocation{private-function-dynamic-ownership=false},
+  canonicalize{cse-between-iterations=false    max-iterations=10 max-num-rewrites=-1 region-simplify=normal test-convergence=false top-down=true},
+  buffer-deallocation-simplification,
+  bufferization-lower-deallocations,
+  cse,
+  canonicalize{cse-between-iterations=false    max-iterations=10 max-num-rewrites=-1 region-simplify=normal test-convergence=false top-down=true},
+  canonicalize{cse-between-iterations=false    max-iterations=10 max-num-rewrites=-1 region-simplify=normal test-convergence=false top-down=true},
+  convert-linalg-to-loops,
+  expand-strided-metadata,
+  lower-affine,
+  convert-scf-to-cf{allow-pattern-rollback=true},
+  func.func(
+    llvm-request-c-wrappers
+  ),
+  finalize-memref-to-llvm{index-bitwidth=0 use-aligned-alloc=false use-generic-functions=true},
+  convert-math-to-llvm{approximate-log1p=true},
+  convert-arith-to-llvm{index-bitwidth=0},
+  convert-cf-to-llvm{index-bitwidth=0},
+  convert-func-to-llvm{index-bitwidth=0 use-bare-ptr-memref-call-conv=false},
+  convert-index-to-llvm{index-bitwidth=0},
+  reconcile-unrealized-casts
+)
+

@@ -1,6 +1,6 @@
 # TensorForge progress log
 
-Current state: Stage 4 complete. Next: Stage 5 (fusion).
+Current state: Stage 5 complete. Next: Stage 6 (CPU tiling and vectorization).
 
 ## How to resume
 
@@ -32,6 +32,8 @@ Toolchain locations on Hive: micromamba at `~/.local/bin/micromamba` (root prefi
 | Matmul tolerance `gamma_{K+1} (|A||B| + |bias|)` against FP64 | Deterministic bound valid for every summation order, so it also covers tiled and vectorized code |
 | All harness buffers 64-byte aligned (commit 30cca26) | 512^3 times depended on output placement by up to 18%; Stage 4 and 5 re-measured, earlier CSVs moved to `results/cpu/superseded/` |
 | Commit code before timing runs | Every CSV row then carries a clean commit hash |
+| Fusion = upstream elementwise fusion + TensorForge tile-and-fuse + in-place epilogue rewrite + upstream empty-tensor elimination | Zero temporaries; the only non-upstream rewrite is `EpilogueIntoProducerInit` |
+| No CSE between tiling and bufferization | CSE merges the fill's and the output's `tensor.empty`, forcing a full temporary and a copy |
 
 ## Stage 0 report
 
@@ -57,8 +59,13 @@ Folders for `relu(relu(x))`, `add`/`bias_add` with a zero splat, and constant fo
 
 `--tforge-cpu-pipeline` compiles all four workloads to native code; 36/36 correctness checks pass (bit-exact elementwise, matmul within the FP64-derived bound). Baseline matmul is scalar, 0.6 to 2.8 GFLOP/s against 44 to 92 GFLOP/s for single-threaded OpenBLAS (`results/cpu/stage4.csv`, commit 30cca26, job 24093215). Failures on the way: `llvm-request-c-wrappers` must be nested under `func.func`; `buffer-results-to-out-params` needs `modify-public-functions`; a dangling lambda capture in the harness crashed matmul runs (fixed before any result was recorded). Details in `docs/stage4.md`.
 
+## Stage 5 report
+
+Fused `relu(matmul + bias)` allocates no temporaries (baseline: two MxN buffers) and writes each output tile once; 20/20 kernels correct. Time changes by at most a few percent at non-power-of-two shapes because the scalar matmul dominates; 512^3 differences follow the Stage 4 placement effect. Results `results/cpu/stage5.csv` (commit 30cca26), IR in `results/cpu/stage5_ir/`. The first fused version kept a full-size temporary because CSE merged `tensor.empty` ops and because a loop-carried result blocked out-param hoisting; both fixed before measuring. Details in `docs/stage5.md`.
+
 ## Open questions
 
 - CMake `ZLIB_LIBRARY` not found warning during configure (no effect so far).
 - Stage 2: the `+0.0` fold only recognizes a direct `relu` producer; a "never -0.0" analysis would cover more cases.
+- Stage 5: fused variants are 7% slower than the baseline at 256^3 only; not explained.
 - Stage 4: scalar 512^3 kernels vary by up to 18% with output-buffer placement (446 vs 377 ms at 0 vs 16 byte offset); mechanism not attributed (no hardware counters).
