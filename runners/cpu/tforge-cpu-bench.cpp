@@ -59,6 +59,35 @@ void _mlir_memref_to_llvm_free(void *ptr) { std::free(ptr); }
 
 namespace {
 
+/// Heap buffer with 64-byte (cache line) alignment, so every kernel sees the
+/// same alignment for inputs and outputs regardless of the C++ allocator.
+/// `offsetBytes` shifts the data start (for the alignment experiment only).
+class Buffer {
+public:
+  explicit Buffer(size_t n = 0, size_t offsetBytes = 0) { resize(n, offsetBytes); }
+  ~Buffer() { std::free(base_); }
+  Buffer(const Buffer &) = delete;
+  Buffer &operator=(const Buffer &) = delete;
+  void resize(size_t n, size_t offsetBytes = 0) {
+    std::free(base_);
+    size_t bytes = (n * sizeof(float) + offsetBytes + 63) / 64 * 64 + 64;
+    base_ = static_cast<char *>(std::aligned_alloc(64, bytes));
+    data_ = reinterpret_cast<float *>(base_ + offsetBytes);
+    n_ = n;
+  }
+  float *data() { return data_; }
+  const float *data() const { return data_; }
+  size_t size() const { return n_; }
+  float *begin() { return data_; }
+  float *end() { return data_ + n_; }
+  float &operator[](size_t i) { return data_[i]; }
+
+private:
+  char *base_ = nullptr;
+  float *data_ = nullptr;
+  size_t n_ = 0;
+};
+
 template <int Rank> struct MemRef {
   float *allocated;
   float *aligned;
@@ -67,7 +96,7 @@ template <int Rank> struct MemRef {
   int64_t strides[Rank];
 };
 
-template <int Rank> MemRef<Rank> view(std::vector<float> &v,
+template <int Rank> MemRef<Rank> view(Buffer &v,
                                       const int64_t (&shape)[Rank]) {
   MemRef<Rank> d{};
   d.allocated = d.aligned = v.data();
@@ -86,6 +115,7 @@ struct Args {
   int64_t m = 0, n = 0, k = 0;
   int warmup = 10, reps = 100;
   unsigned seed = 1234;
+  size_t outOffset = 0;
 };
 
 [[noreturn]] void die(const std::string &msg) {
@@ -112,6 +142,7 @@ Args parse(int argc, char **argv) {
     else if (f == "--in-dir") a.inDir = next();
     else if (f == "--out") a.out = next();
     else if (f == "--seed") a.seed = std::stoul(next());
+    else if (f == "--out-offset") a.outOffset = std::stoul(next());
     else die("unknown flag " + f);
   }
   if (a.lib.empty() || a.workload.empty() || a.m <= 0 || a.n <= 0)
@@ -122,7 +153,7 @@ Args parse(int argc, char **argv) {
   return a;
 }
 
-void fill(std::vector<float> &v, const Args &a, const std::string &name,
+void fill(Buffer &v, const Args &a, const std::string &name,
           std::mt19937 &rng) {
   if (!a.inDir.empty()) {
     std::ifstream f(a.inDir + "/" + name + ".bin", std::ios::binary);
@@ -169,7 +200,10 @@ int main(int argc, char **argv) {
 
   std::mt19937 rng(a.seed);
   const int64_t M = a.m, N = a.n, K = a.k;
-  std::vector<float> A, B, Bias, Out(M * N, std::nanf(""));
+  Buffer A, B, Bias, Out(M * N, a.outOffset);
+  // NaN-fill the output so elements the kernel fails to write are detected.
+  for (float &x : Out)
+    x = std::nanf("");
   MemRef<2> dA{}, dB{}, dOut = view<2>(Out, {M, N});
   MemRef<1> dBias{};
   std::function<void()> call;
@@ -236,7 +270,7 @@ int main(int argc, char **argv) {
   for (double x : ns)
     var += (x - mean) * (x - mean);
   double sd = ns.size() > 1 ? std::sqrt(var / (ns.size() - 1)) : 0.0;
-  std::vector<double> sorted = ns;
+  std::vector<double> sorted(ns);
   std::sort(sorted.begin(), sorted.end());
   size_t r = sorted.size();
   double median = r % 2 ? sorted[r / 2] : 0.5 * (sorted[r / 2 - 1] + sorted[r / 2]);
@@ -248,10 +282,10 @@ int main(int argc, char **argv) {
               "\"warmup\": %d, \"reps\": %d, \"median_ns\": %.1f, "
               "\"min_ns\": %.1f, \"mean_ns\": %.1f, \"std_ns\": %.1f, "
               "\"alloc_bytes_per_call\": %llu, \"alloc_count_per_call\": %llu, "
-              "\"threads\": 1, \"cpu\": %d, \"checksum\": %.9g}\n",
+              "\"threads\": 1, \"cpu\": %d, \"out_offset\": %zu, \"checksum\": %.9g}\n",
               a.workload.c_str(), (long long)M, (long long)N, (long long)K,
               a.warmup, a.reps, median, sorted.front(), mean, sd,
               (unsigned long long)allocBytes, (unsigned long long)allocCount,
-              cpu, checksum);
+              cpu, a.outOffset, checksum);
   return 0;
 }

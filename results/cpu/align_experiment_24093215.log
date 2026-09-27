@@ -1,0 +1,5 @@
+matmul512 baseline off=0 446.4 ms
+matmul512 baseline off=16 377.1 ms
+matmul512 baseline off=32 387.3 ms
+mbr512 fused-32 off=0 445.7 ms
+mbr512 fused-32 off=16 403.7 ms
