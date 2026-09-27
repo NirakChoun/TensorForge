@@ -1,6 +1,6 @@
 # TensorForge progress log
 
-Current state: Stage 5 complete. Next: Stage 6 (CPU tiling and vectorization).
+Current state: Stage 6 complete. Next: Stage 7 (GPU path).
 
 ## How to resume
 
@@ -34,6 +34,10 @@ Toolchain locations on Hive: micromamba at `~/.local/bin/micromamba` (root prefi
 | Commit code before timing runs | Every CSV row then carries a clean commit hash |
 | Fusion = upstream elementwise fusion + TensorForge tile-and-fuse + in-place epilogue rewrite + upstream empty-tensor elimination | Zero temporaries; the only non-upstream rewrite is `EpilogueIntoProducerInit` |
 | No CSE between tiling and bufferization | CSE merges the fill's and the output's `tensor.empty`, forcing a full temporary and a copy |
+| Register tiling = the same `tforge-tile-and-fuse` pass applied again with `peel=1` and `tile-k` | One mechanism for cache and register tiles; peeling gives static full tiles |
+| `linalg::vectorize(createNamedContraction=true)` | Default vectorization (multi_reduction) produced no FMAs after contract lowering |
+| Accumulator hoisting with upstream `loop-invariant-subset-hoisting` on tensors | Upstream `hoistRedundantVectorTransfers` refuses subview-based accumulators |
+| Default CPU config for later stages: `fuse-elementwise=1 reg-tile=6,16,4 vectorize=1` (no cache tile) | Best at 4 of 5 sweep shapes |
 
 ## Stage 0 report
 
@@ -63,9 +67,14 @@ Folders for `relu(relu(x))`, `add`/`bias_add` with a zero splat, and constant fo
 
 Fused `relu(matmul + bias)` allocates no temporaries (baseline: two MxN buffers) and writes each output tile once; 20/20 kernels correct. Time changes by at most a few percent at non-power-of-two shapes because the scalar matmul dominates; 512^3 differences follow the Stage 4 placement effect. Results `results/cpu/stage5.csv` (commit 30cca26), IR in `results/cpu/stage5_ir/`. The first fused version kept a full-size temporary because CSE merged `tensor.empty` ops and because a loop-carried result blocked out-param hoisting; both fixed before measuring. Details in `docs/stage5.md`.
 
+## Stage 6 report
+
+Register tiling (6x16, K step 4) with peeling, vectorization to `vector.contract`, and outer-product lowering gives 81 to 100 GFLOP/s single-threaded for fused `relu(matmul + bias)` (scalar: 0.6 to 2.8), at or above OpenBLAS for matmul at 4 of 5 shapes. 141 kernels correct. Cache tiles that are not multiples of the register tile hurt (scalar remainder strips). Assembly shows 12 `ymm` accumulators and `vfmadd231ps`; `llvm-mca` predicts 2 FMAs/cycle for the inner loop. Results `results/cpu/stage6_sweep.csv`, `results/cpu/stage6_best.csv` (commit e6f9f8e), IR/asm in `results/cpu/stage6_ir/`. Details in `docs/stage6.md`.
+
 ## Open questions
 
 - CMake `ZLIB_LIBRARY` not found warning during configure (no effect so far).
 - Stage 2: the `+0.0` fold only recognizes a direct `relu` producer; a "never -0.0" analysis would cover more cases.
+- Stage 6: vectorized `add` is 30 to 45% slower than NumPy at 1024x1024; cache tiles that are multiples of 6x16 were not swept.
 - Stage 5: fused variants are 7% slower than the baseline at 256^3 only; not explained.
 - Stage 4: scalar 512^3 kernels vary by up to 18% with output-buffer placement (446 vs 377 ms at 0 vs 16 byte offset); mechanism not attributed (no hardware counters).
