@@ -1,6 +1,6 @@
 # TensorForge progress log
 
-Current state: Stage 8 complete. Next: Stage 9 (cost model versus autotuning).
+Current state: Core stages 0-9 complete. Next: Extended stages E4, E1, E3, E2, then final polish.
 
 ## How to resume
 
@@ -49,6 +49,8 @@ Toolchain locations on Hive: micromamba at `~/.local/bin/micromamba` (root prefi
 | `align-vectors`: 16-byte alignment on `vector<4xf32>` global accesses when BK, BN, TN are multiples of 4 | Legal by construction (cudaMalloc alignment, padded row lengths, 128-bit copy distribution); gives LDG/STG.E.128 |
 | Default GPU config for later stages: `block-tile=128,64 thread-tile=8,4 tile-k=16 promote=1 vectorize=1` | Best or near-best at 1024^3 and above in the Stage 8 sweep |
 | Python drivers: 10-minute subprocess timeout | A pattern loop hung one compile; a hang now fails the step |
+| Stage 9 configuration space: 105 staged configs (BM, BN in {32,64,128}; TM x TN in {4x4, 8x4, 4x8, 8x8}; BK in {8,16,32}; 32-1024 threads) | Covers the Stage 8 space and the register/occupancy limits that `ptxas` accepts without spills |
+| Cost model constants (32 shared-memory words/cycle/SM, 600-cycle load latency) are assumptions, fixed before the 8-shape run | Calibrating them on the measured data would make the comparison with autotuning circular |
 
 ## Stage 0 report
 
@@ -90,8 +92,16 @@ Register tiling (6x16, K step 4) with peeling, vectorization to `vector.contract
 
 Staged GPU kernels (K loop, shared-memory promotion, per-thread register tiles, 128-bit accesses, accumulator hoisted into registers): fused `mbr` 41.6 TFLOP/s at 2048^3 (cuBLAS + epilogue 50.7, Triton fused 41.7), ahead of KernelForge v6 at every shape and 9% ahead of cuBLAS + epilogue at 777x1111x333. 112 TensorForge + 14 Triton + 14 KernelForge runs correct (`results/gpu/stage8*.csv`, `kernelforge_sgemm.csv`; commit dac1827). Shared memory without vectorization is slower than none (accumulator round-trips through global memory). Fixes on the way: a hung compile (pattern ordering), constant kernel operands, hoisting blocked by subviews. Details in `docs/stage8.md`.
 
+## Stage 9 report
+
+The analytical cost model's pick reaches 0.74 to 0.90 of the autotuned best, clock-adjusted (geometric mean 0.81 over 8 shapes, 105 configurations each, 840 checked runs); its ranking correlates weakly with measurement (Spearman -0.00 to 0.47) and it systematically favors 8x8 thread tiles in one-warp blocks. The autotuned best reaches 44.0 TFLOP/s at 2048^3. Ablation of the default pipeline at 2048^3: 6380 (unfused) -> 6565 (+fusion) -> 12822 (+tiling) -> 16548 (+shared memory) -> 41649 GFLOP/s (+vectorization). Results `results/gpu/stage9_autotune.csv`, `stage9_summary.csv`, `stage9_ablation.csv` (commits 4632965, cd809d9; job 24105050). Details in `docs/stage9.md`; project report in `docs/report.md`.
+
+Before the 8-shape run, one trial at 1000^3 (scratch CSV, not committed) checked the drivers: model pick b32x64-t8x8-k32 0.0975 ms, best b32x64-t4x4-k32 0.0891 ms, ratio 0.914, Spearman 0.423. The model was not changed after it. The naive fused kernel is about 2x faster than in Stage 7 because constant sinking (Stage 8) made the K-loop bound a constant, which lets LLVM unroll it.
+
 ## Open questions
 
+- Stage 9: the cost model has no per-warp issue or register-pressure term; whether adding them closes the 0.81 gap was not tested.
+- Stage 9: the ablation baseline sums three kernel medians and ignores launch gaps; run-to-run variation between near-tied configurations (0.5% at 4096^3) was not measured.
 - CMake `ZLIB_LIBRARY` not found warning during configure (no effect so far).
 - Stage 2: the `+0.0` fold only recognizes a direct `relu` producer; a "never -0.0" analysis would cover more cases.
 - Stage 8: TensorForge reaches 37 to 38% of clock-adjusted peak at 2048^3 and 4096^3 vs 46 to 48% for Triton and cuBLAS; no software pipelining yet. Padding-copy share of time not measured separately.
