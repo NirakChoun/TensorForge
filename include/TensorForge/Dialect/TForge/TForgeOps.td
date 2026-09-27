@@ -23,6 +23,9 @@ def TForge_Dialect : Dialect {
     statically shaped f32 tensors. The dialect is lowered to upstream
     Linalg/Tensor/Arith by --convert-tforge-to-linalg.
   }];
+  // Folded constants are materialized as arith.constant.
+  let dependentDialects = ["::mlir::arith::ArithDialect"];
+  let hasConstantMaterializer = 1;
 }
 
 class TForge_Op<string mnemonic, list<Trait> traits = []>
@@ -48,6 +51,7 @@ def TForge_AddOp : TForge_Op<"add", [Pure, Commutative]> {
     $lhs `,` $rhs attr-dict `:` type($lhs) `,` type($rhs) `->` type($result)
   }];
   let hasVerifier = 1;
+  let hasFolder = 1;
 }
 
 def TForge_ReluOp : TForge_Op<"relu", [Pure]> {
@@ -65,6 +69,7 @@ def TForge_ReluOp : TForge_Op<"relu", [Pure]> {
   let results = (outs AnyTensor:$result);
   let assemblyFormat = "$input attr-dict `:` type($input) `->` type($result)";
   let hasVerifier = 1;
+  let hasFolder = 1;
 }
 
 def TForge_MatmulOp : TForge_Op<"matmul", [Pure]> {
@@ -104,6 +109,7 @@ def TForge_BiasAddOp : TForge_Op<"bias_add", [Pure]> {
     $input `,` $bias attr-dict `:` type($input) `,` type($bias) `->` type($result)
   }];
   let hasVerifier = 1;
+  let hasFolder = 1;
 }
 
 #endif // TFORGE_OPS

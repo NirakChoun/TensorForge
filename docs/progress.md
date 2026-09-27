@@ -1,6 +1,6 @@
 # TensorForge progress log
 
-Current state: Stage 1 complete. Next: Stage 2 (canonicalization).
+Current state: Stage 2 complete. Next: Stage 3 (lowering to Linalg).
 
 ## How to resume
 
@@ -38,6 +38,11 @@ Commits: see `git log` (`stage0:` prefix).
 
 The `tforge` dialect (add, relu, matmul, bias_add) is defined with verifiers; 4/4 lit tests pass, including 18 rejected cases. Semantics in `docs/dialect.md`, report in `docs/stage1.md`. One test expectation was adjusted for MLIR 23's ODS wording ("any non-token type"). A TableGen doc string containing `}]` ended its code block early; reworded.
 
+## Stage 2 report
+
+Folders for `relu(relu(x))`, `add`/`bias_add` with a zero splat, and constant folding of `add`, `relu`, `bias_add`; 5/5 lit tests pass. Decision: `x + (+0.0) -> x` is not exact because of signed zero, so it is folded only when `x` is a `relu` result; `x + (-0.0) -> x` is always folded. Legality arguments in `docs/stage2.md`.
+
 ## Open questions
 
 - CMake `ZLIB_LIBRARY` not found warning during configure (no effect so far).
+- Stage 2: the `+0.0` fold only recognizes a direct `relu` producer; a "never -0.0" analysis would cover more cases.

@@ -1,5 +1,6 @@
 add_mlir_dialect_library(MLIRTForge
   TForgeDialect.cpp
+  TForgeFolders.cpp
   TForgeOps.cpp
 
   ADDITIONAL_HEADER_DIRS
@@ -9,6 +10,7 @@ add_mlir_dialect_library(MLIRTForge
   MLIRTForgeOpsIncGen
 
   LINK_LIBS PUBLIC
+  MLIRArithDialect
   MLIRIR
   MLIRSideEffectInterfaces
 )
