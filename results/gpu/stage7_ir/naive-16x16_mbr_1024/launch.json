@@ -1,0 +1,1 @@
+{"kernel": "entry_kernel", "grid": [64, 64, 1], "block": [16, 16, 1], "args": ["arg2", "arg0", "arg1", "arg3", "f32bits:0", "i64:0", "i64:1024", "i64:1"]}
