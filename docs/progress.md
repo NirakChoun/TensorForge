@@ -102,8 +102,15 @@ Before the 8-shape run, one trial at 1000^3 (scratch CSV, not committed) checked
 
 Both pipelines take `print-after-each=1`, which prints the module after each named stage (4 CPU, 5 GPU) under a `// ----- tforge: after <stage> -----` header, through a new pass `tforge-print-ir`. With `--mlir-print-debuginfo`, lowered ops carry the `tforge` source location; the staged-kernel error is reported at the `tforge.matmul`'s `file:line:col`. 15/15 lit tests pass (new `test/Pipelines/print-after-each.mlir`; `gpu-staged.mlir` now checks the location). Commit e5e1490. Details in `docs/debugging.md`. Extended-stage commits use the prefixes `e1:` to `e4:` (the brief's `stageN:` format covers only numbered stages).
 
+## E1 report
+
+Only FMA contraction changes results: every TensorForge variant without FMA is bitwise identical to the Stage 4 scalar kernel, and every variant with FMA (CPU vectorized with KR 1 or 4, GPU naive, GPU staged with BK 8, 16, 32) is bitwise identical to the others, at all 8 workload/shape pairs. Contraction changes 40% to 91% of output bits; every variant stays within 1.5% of the FP64-derived bound. OpenBLAS and cuBLAS match TensorForge's FMA results bitwise at some small-K shapes and have 3.2x to 5.5x smaller max error at K = 4096. Results `results/numerics/e1.csv` (job 24105050). Details in `docs/numerics.md`.
+
+The first E1 run was stopped partway to add a bitwise comparison against the FMA variant; `pkill -f` also ended the `srun` step that ran it (its command line contained the pattern). The rerun is the one recorded.
+
 ## Open questions
 
+- E1: TensorForge's large-K error is 3.2x to 5.5x the libraries'; a blocked K reduction was not tried.
 - Stage 9: the cost model has no per-warp issue or register-pressure term; whether adding them closes the 0.81 gap was not tested.
 - Stage 9: the ablation baseline sums three kernel medians and ignores launch gaps; run-to-run variation between near-tied configurations (0.5% at 4096^3) was not measured.
 - CMake `ZLIB_LIBRARY` not found warning during configure (no effect so far).
