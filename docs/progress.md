@@ -112,8 +112,13 @@ The first E1 run was stopped partway to add a bitwise comparison against the FMA
 
 One fused kernel compiles end to end in 0.18 to 0.29 s, independent of problem size; MLIR passes take 6 to 27 ms of that, and process start-up, LLVM, `ptxas`, and linking take the rest. The staged GPU pipeline is the most expensive (27 ms of passes, led by `convert-gpu-to-nvvm` and `tforge-gpu-map`). Results `results/compile/e3.csv` and `timing_*.txt` (job 24105050). Details in `docs/compile_time.md`. This corrected a Stage 9 statement: `docs/stage9.md` had attributed the cost model's 43 to 74 s per shape to compilation without measuring the split; the claim was removed and the question moved to Open questions.
 
+## E2 report
+
+On the RTX A6000 (sm_86, 84 SMs), the unchanged cost model's pick reaches 0.68 to 0.86 of the autotuned best, clock-adjusted (geometric mean 0.78, vs 0.81 on Blackwell); Spearman -0.09 to 0.47. It picks the same kind of configuration on both GPUs (8x8 thread tiles in 32x64 blocks), while the measured best differs between them (8x8 in 128x128 blocks wins at 4096^3 and 2560^3 on the A6000). All 840 runs passed correctness. Results `results/gpu/e2_a6000_autotune.csv`, `e2_a6000_summary.csv` (commit 572f506, job 24153819). Details in `docs/e2_a6000.md`. The target is selected with `TF_GPU_ARCH`, `TF_GPU_SMS`, `TF_GPU_DRAM_BW`; `scripts/devjob.sh start a6000` holds an A6000 allocation.
+
 ## Open questions
 
+- E2: A6000 DRAM bandwidth was assumed (nominal 768 GB/s), not measured; the peak used for clock adjustment counts all 128 lanes per SM, including those shared with INT32.
 - E3: the Stage 9 cost-model time split (compilation vs one-at-a-time occupancy queries) was not measured.
 - E1: TensorForge's large-K error is 3.2x to 5.5x the libraries'; a blocked K reduction was not tried.
 - Stage 9: the cost model has no per-warp issue or register-pressure term; whether adding them closes the 0.81 gap was not tested.
