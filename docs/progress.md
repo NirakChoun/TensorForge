@@ -84,7 +84,6 @@ Register tiling (6x16, K step 4) with peeling, vectorization to `vector.contract
 
 - CMake `ZLIB_LIBRARY` not found warning during configure (no effect so far).
 - Stage 2: the `+0.0` fold only recognizes a direct `relu` producer; a "never -0.0" analysis would cover more cases.
-- Stage 7: driver-reported register counts (22) differ from `ptxas -v` (18) for some kernels.
 - Stage 6: vectorized `add` is 30 to 45% slower than NumPy at 1024x1024; cache tiles that are multiples of 6x16 were not swept.
 - Stage 5: fused variants are 7% slower than the baseline at 256^3 only; not explained.
 - Stage 4: scalar 512^3 kernels vary by up to 18% with output-buffer placement (446 vs 377 ms at 0 vs 16 byte offset); mechanism not attributed (no hardware counters).

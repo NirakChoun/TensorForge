@@ -85,4 +85,4 @@ TODO(Nirak)
 
 ## Open questions
 
-- `cuFuncGetAttribute` reports 22 registers for some kernels where `ptxas -v` reports 18 for the same configuration at a different shape; the CSV records the driver's value. Not investigated.
+None. (Register counts from the driver and from `ptxas -v` agree: 18 for the `mbr` kernel, 22 for the plain `matmul` kernel.)
