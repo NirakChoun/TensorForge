@@ -11,6 +11,12 @@
 //       [--in-dir d --out o.bin]
 //   tforge-gpu-bench --mode cublas --workload mbr --m M --n N --k K ...
 //
+// --pm/--pn/--pk give the padded problem a staged (Stage 8) kernel was
+// compiled for. The runner then keeps zero-initialized padded buffers and, in
+// every timed call, copies A, B, and bias into them, launches the kernel, and
+// copies the valid M x N block of C out (cudaMemcpy2DAsync, same stream), so
+// padding cost is part of the measured time.
+//
 // Buffers are indexed as the host entry function's arguments:
 //   matmul: arg0=A (MxK) arg1=B (KxN) arg2=C (MxN)
 //   mbr:    arg0=A arg1=B arg2=bias (N) arg3=C
@@ -63,7 +69,7 @@ struct Args {
   std::string mode = "kernel", cubin, kernel, workload, inDir, out;
   std::vector<int> grid{1, 1, 1}, block{1, 1, 1};
   std::vector<std::string> kargs;
-  long m = 0, n = 0, k = 0;
+  long m = 0, n = 0, k = 0, pm = 0, pn = 0, pk = 0;
   int warmup = 10, reps = 100;
   bool flush = false;
   unsigned seed = 1234;
@@ -101,6 +107,9 @@ static Args parse(int argc, char **argv) {
     else if (f == "--m") a.m = std::stol(next());
     else if (f == "--n") a.n = std::stol(next());
     else if (f == "--k") a.k = std::stol(next());
+    else if (f == "--pm") a.pm = std::stol(next());
+    else if (f == "--pn") a.pn = std::stol(next());
+    else if (f == "--pk") a.pk = std::stol(next());
     else if (f == "--warmup") a.warmup = std::stoi(next());
     else if (f == "--reps") a.reps = std::stoi(next());
     else if (f == "--flush") a.flush = true;
@@ -111,6 +120,10 @@ static Args parse(int argc, char **argv) {
   }
   if (a.workload != "matmul" && a.workload != "mbr") die("--workload matmul|mbr");
   if (a.m <= 0 || a.n <= 0 || a.k <= 0) die("need --m --n --k");
+  if (!a.pm) a.pm = a.m;
+  if (!a.pn) a.pn = a.n;
+  if (!a.pk) a.pk = a.k;
+  if (a.pm < a.m || a.pn < a.n || a.pk < a.k) die("padded sizes must be >= M, N, K");
   if (a.mode == "kernel" && (a.cubin.empty() || a.kernel.empty() || a.kargs.empty()))
     die("kernel mode needs --cubin --kernel --args");
   return a;
@@ -179,6 +192,25 @@ int main(int argc, char **argv) {
   std::vector<void *> bufs = {dA, dB};
   if (mbr) bufs.push_back(dBias);
   bufs.push_back(dC);
+  const long PM = a.pm, PN = a.pn, PK = a.pk;
+  const bool padded = a.mode == "kernel" && (PM != M || PN != N || PK != K);
+  float *pA = nullptr, *pB = nullptr, *pBias = nullptr, *pC = nullptr;
+  if (padded) {
+    // Zeroed once: the pad regions are never written by the copies, so they
+    // stay zero and contribute nothing to the valid block.
+    CUDA(cudaMalloc(&pA, PM * PK * 4));
+    CUDA(cudaMalloc(&pB, PK * PN * 4));
+    CUDA(cudaMalloc(&pC, PM * PN * 4));
+    CUDA(cudaMemset(pA, 0, PM * PK * 4));
+    CUDA(cudaMemset(pB, 0, PK * PN * 4));
+    if (mbr) {
+      CUDA(cudaMalloc(&pBias, PN * 4));
+      CUDA(cudaMemset(pBias, 0, PN * 4));
+    }
+    bufs = {pA, pB};
+    if (mbr) bufs.push_back(pBias);
+    bufs.push_back(pC);
+  }
 
   cudaStream_t stream;
   CUDA(cudaStreamCreate(&stream));
@@ -233,8 +265,15 @@ int main(int argc, char **argv) {
     CU(cuDeviceGetAttribute(&maxThreadsSm, CU_DEVICE_ATTRIBUTE_MAX_THREADS_PER_MULTIPROCESSOR, dev));
     occupancy = double(blocksPerSm * ((threads + warp - 1) / warp)) / (maxThreadsSm / warp);
     run = [&] {
+      if (padded) {
+        CUDA(cudaMemcpy2DAsync(pA, PK * 4, dA, K * 4, K * 4, M, cudaMemcpyDeviceToDevice, stream));
+        CUDA(cudaMemcpy2DAsync(pB, PN * 4, dB, N * 4, N * 4, K, cudaMemcpyDeviceToDevice, stream));
+        if (mbr) CUDA(cudaMemcpyAsync(pBias, dBias, N * 4, cudaMemcpyDeviceToDevice, stream));
+      }
       CU(cuLaunchKernel(fn, a.grid[0], a.grid[1], a.grid[2], a.block[0], a.block[1], a.block[2],
                         0, stream, params.data(), nullptr));
+      if (padded)
+        CUDA(cudaMemcpy2DAsync(dC, N * 4, pC, PN * 4, N * 4, M, cudaMemcpyDeviceToDevice, stream));
     };
   } else if (a.mode == "cublas") {
     CUBLAS(cublasCreate(&blas));
@@ -305,12 +344,14 @@ int main(int argc, char **argv) {
 
   std::printf(
       "{\"gpu\": \"%s\", \"mode\": \"%s\", \"workload\": \"%s\", \"m\": %ld, \"n\": %ld, \"k\": %ld, "
+      "\"padded\": \"%ldx%ldx%ld\", "
       "\"grid\": \"%dx%dx%d\", \"block\": \"%dx%dx%d\", \"regs\": %d, \"local_bytes\": %d, "
       "\"static_smem\": %d, \"blocks_per_sm\": %d, \"theo_occupancy\": %.3f, "
       "\"warmup\": %d, \"reps\": %d, \"l2_flush\": %d, \"median_ms\": %.6f, \"min_ms\": %.6f, "
       "\"std_ms\": %.6f, \"sm_clock_median_mhz\": %.0f, \"sm_clock_min_mhz\": %.0f, "
       "\"sm_clock_max_mhz\": %.0f, \"power_median_w\": %.1f, \"cuda_driver\": %d}\n",
-      name, a.mode.c_str(), a.workload.c_str(), M, N, K, a.grid[0], a.grid[1], a.grid[2],
+      name, a.mode.c_str(), a.workload.c_str(), M, N, K, padded ? PM : M, padded ? PN : N,
+      padded ? PK : K, a.grid[0], a.grid[1], a.grid[2],
       a.block[0], a.block[1], a.block[2], regs, localBytes, smem, blocksPerSm, occupancy, a.warmup,
       a.reps, a.flush ? 1 : 0, s.median, s.min, s.sd, c.median, c.min, clkMax, p.median, driver);
   return 0;

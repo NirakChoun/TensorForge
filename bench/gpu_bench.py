@@ -79,7 +79,7 @@ def main():
                 gflops = flops / (r["median_ms"] * 1e-3) / 1e9
                 clk = r["sm_clock_median_mhz"]
                 pct = 100.0 * gflops / tg.fp32_peak_gflops(clk) if clk > 0 else float("nan")
-                launch_str = f"grid={r['grid']} block={r['block']}"
+                launch_str = f"grid={r['grid']} block={r['block']} padded={r['padded']}"
                 res = (f"regs={r['regs']} local={r['local_bytes']} smem={r['static_smem']} "
                        f"blocks/SM={r['blocks_per_sm']} occ={r['theo_occupancy']}")
                 if res_info:

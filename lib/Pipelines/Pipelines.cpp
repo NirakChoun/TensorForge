@@ -134,7 +134,10 @@ std::string mlir::tforge::gpuPipelineString(const GpuPipelineOptions &o) {
   if (o.fuseElementwise)
     p += "linalg-fuse-elementwise-ops,canonicalize,";
   p += "func.func(tforge-gpu-tile{block-tile=" + joinSizes(bt) +
-       " thread-tile=" + joinSizes(tt) + print + "}),canonicalize,";
+       " thread-tile=" + joinSizes(tt) + " tile-k=" + std::to_string(o.tileK) +
+       (o.promote ? " promote=1" : "") + print + "}),canonicalize,";
+  if (o.vectorize)
+    p += "func.func(tforge-vectorize),canonicalize,";
   p += "eliminate-empty-tensors,";
   p += "one-shot-bufferize{bufferize-function-boundaries=1 "
        "function-boundary-type-conversion=identity-layout-map},canonicalize,";
@@ -142,16 +145,20 @@ std::string mlir::tforge::gpuPipelineString(const GpuPipelineOptions &o) {
   // subviews; CSE merges the subviews so canonicalize folds the self-copy.
   p += "buffer-results-to-out-params{hoist-static-allocs=1 "
        "modify-public-functions=1},cse,canonicalize,";
+  // Shared-memory tiles are allocated inside the K loop; hoist them.
+  p += "func.func(buffer-loop-hoisting),";
   p += "func.func(tforge-gpu-map{block-dims=" + std::to_string(tx) + "," +
        std::to_string(ty) + ",1" + print + "}),canonicalize,";
   p += "convert-linalg-to-loops,canonicalize,";
-  p += "gpu-kernel-outlining,";
+  p += "func.func(tforge-gpu-sink-constants),gpu-kernel-outlining,";
   p += "expand-strided-metadata,lower-affine,convert-scf-to-cf,";
   // Bare pointers: each memref kernel argument becomes one pointer, which the
   // CUDA driver-API runner passes directly.
   p += "gpu.module(convert-gpu-to-nvvm{use-bare-ptr-memref-call-conv=1}),"
        "reconcile-unrealized-casts,";
-  p += "tforge-gpu-extract";
+  bool aligned = o.vectorize && o.tileK > 0 && o.tileK % 4 == 0 &&
+                 bt[1] % 4 == 0 && tt[1] % 4 == 0;
+  p += aligned ? "tforge-gpu-extract{align-vectors=1}" : "tforge-gpu-extract";
   return p;
 }
 

@@ -47,6 +47,16 @@ struct GpuPipelineOptions : public PassPipelineOptions<GpuPipelineOptions> {
                                 llvm::cl::desc("Block tile BM,BN (default 16,16)")};
   ListOption<int64_t> threadTile{
       *this, "thread-tile", llvm::cl::desc("Per-thread tile TM,TN (default 1,1)")};
+  Option<int64_t> tileK{*this, "tile-k",
+                        llvm::cl::desc("K step of the block loop (Stage 8); "
+                                       "needs shapes that are multiples of the tiles"),
+                        llvm::cl::init(0)};
+  Option<bool> promote{*this, "promote",
+                       llvm::cl::desc("Stage A/B tiles in shared memory"),
+                       llvm::cl::init(false)};
+  Option<bool> vectorize{*this, "vectorize",
+                         llvm::cl::desc("Vectorize thread tiles and copies"),
+                         llvm::cl::init(false)};
   Option<bool> printScript{
       *this, "print-script",
       llvm::cl::desc("Print the generated transform scripts to stderr"),

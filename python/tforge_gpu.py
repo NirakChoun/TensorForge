@@ -47,10 +47,23 @@ def parse_launch(device_mlir):
     return {"kernel": kernel, "grid": arr("grid"), "block": arr("block"), "args": args}
 
 
+def padded_shape(m, n, k, options):
+    """Staged kernels (tile-k set) need M, N, K to be multiples of the block and
+    K tiles; returns the padded problem the kernel is compiled for."""
+    opts = dict(o.split("=", 1) for o in options.split() if "=" in o)
+    tk = int(opts.get("tile-k", "0"))
+    if tk <= 0:
+        return m, n, k
+    bm, bn = (int(x) for x in opts.get("block-tile", "16,16").split(","))
+    up = lambda x, t: -(-x // t) * t
+    return up(m, bm), up(n, bn), up(k, tk)
+
+
 def compile_kernel(workload, m, n, k, options="", tag="default"):
     d = ART / tag / f"{workload}_{m}x{n}x{k}"
     d.mkdir(parents=True, exist_ok=True)
-    (d / "input.mlir").write_text(tc.gen_mlir(workload, m, n, k))
+    pm, pn, pk = padded_shape(m, n, k, options)
+    (d / "input.mlir").write_text(tc.gen_mlir(workload, pm, pn, pk))
     flag = f"--tforge-gpu-pipeline={options}" if options else "--tforge-gpu-pipeline"
     run([OPT, d / "input.mlir", flag, "-o", d / "device.mlir"])
     run(["mlir-translate", "--mlir-to-llvmir", d / "device.mlir", "-o", d / "k.ll"])
@@ -68,6 +81,7 @@ def compile_kernel(workload, m, n, k, options="", tag="default"):
         raise RuntimeError("ptxas failed:\n" + r.stderr)
     (d / "k.sass").write_text(run(["cuobjdump", "-sass", d / "k.cubin"]))
     launch = parse_launch(d / "device.mlir")
+    launch["padded"] = [pm, pn, pk]
     (d / "launch.json").write_text(json.dumps(launch))
     return d, launch
 
@@ -79,6 +93,8 @@ def _bench_cmd(workload, m, n, k, kdir=None, launch=None, mode="kernel"):
                 "--grid", ",".join(map(str, launch["grid"])),
                 "--block", ",".join(map(str, launch["block"])),
                 "--args", ",".join(launch["args"])]
+        pm, pn, pk = launch.get("padded", [m, n, k])
+        cmd += ["--pm", pm, "--pn", pn, "--pk", pk]
     return cmd
 
 

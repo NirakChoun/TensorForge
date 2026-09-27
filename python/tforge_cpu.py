@@ -50,6 +50,7 @@ def gen_mlir(workload, m, n, k=None):
 
 def run(cmd, **kw):
     cmd = [str(c) for c in cmd]
+    kw.setdefault("timeout", 600)  # a hung compile or kernel fails the step
     r = subprocess.run(cmd, capture_output=True, text=True, **kw)
     if r.returncode != 0:
         raise RuntimeError(f"command failed ({r.returncode}): {shlex.join(cmd)}\n{r.stderr}")
