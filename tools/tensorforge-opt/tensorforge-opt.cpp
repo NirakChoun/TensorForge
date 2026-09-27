@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "TensorForge/Dialect/TForge/TForgeDialect.h"
+#include "TensorForge/Passes.h"
 
 #include "mlir/IR/DialectRegistry.h"
 #include "mlir/IR/MLIRContext.h"
@@ -18,6 +19,7 @@
 
 int main(int argc, char **argv) {
   mlir::registerAllPasses();
+  mlir::tforge::registerTForgePasses();
 
   mlir::DialectRegistry registry;
   mlir::registerAllDialects(registry);

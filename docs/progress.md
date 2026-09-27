@@ -1,6 +1,6 @@
 # TensorForge progress log
 
-Current state: Stage 2 complete. Next: Stage 3 (lowering to Linalg).
+Current state: Stage 3 complete. Next: Stage 4 (CPU end-to-end).
 
 ## How to resume
 
@@ -41,6 +41,10 @@ The `tforge` dialect (add, relu, matmul, bias_add) is defined with verifiers; 4/
 ## Stage 2 report
 
 Folders for `relu(relu(x))`, `add`/`bias_add` with a zero splat, and constant folding of `add`, `relu`, `bias_add`; 5/5 lit tests pass. Decision: `x + (+0.0) -> x` is not exact because of signed zero, so it is folded only when `x` is a `relu` result; `x + (-0.0) -> x` is always folded. Legality arguments in `docs/stage2.md`.
+
+## Stage 3 report
+
+`--convert-tforge-to-linalg` lowers all four ops (matmul to fill + `linalg.matmul`, elementwise ops to `linalg.generic`); 6/6 lit tests pass, with `--implicit-check-not=tforge.` proving no `tforge` ops remain. Details in `docs/stage3.md`.
 
 ## Open questions
 

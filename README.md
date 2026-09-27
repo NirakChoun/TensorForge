@@ -2,7 +2,7 @@
 
 TensorForge is an MLIR-based tensor compiler that lowers a small tensor dialect (`tforge`) to CPU and NVIDIA GPU code and measures whether each transformation actually makes the generated code faster. It is built on upstream MLIR/LLVM and adds its own dialect, lowerings, pass pipelines, runners, and evaluation.
 
-Status: Stage 2 (canonicalization). See `docs/progress.md` for the current state.
+Status: Stage 3 (lowering to Linalg). See `docs/progress.md` for the current state.
 
 ## Upstream MLIR versus TensorForge
 

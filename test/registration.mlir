@@ -15,6 +15,7 @@
 
 // RUN: tensorforge-opt --help | FileCheck %s --check-prefix=PASSES
 // PASSES-DAG: --canonicalize
+// PASSES-DAG: --convert-tforge-to-linalg
 // PASSES-DAG: --one-shot-bufferize
 // PASSES-DAG: --convert-linalg-to-loops
 // PASSES-DAG: --gpu-kernel-outlining
