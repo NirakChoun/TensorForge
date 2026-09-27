@@ -2,6 +2,7 @@ add_mlir_library(MLIRTForgeTransforms
   TileAndFuse.cpp
   Vectorize.cpp
   Gpu.cpp
+  PrintIR.cpp
 
   DEPENDS
   MLIRTForgePassIncGen

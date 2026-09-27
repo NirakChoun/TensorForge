@@ -155,4 +155,17 @@ def TForgeGpuExtract : Pass<"tforge-gpu-extract", "::mlir::ModuleOp"> {
   let dependentDialects = ["::mlir::LLVM::LLVMDialect"];
 }
 
+def TForgePrintIR : Pass<"tforge-print-ir", "::mlir::ModuleOp"> {
+  let summary = "Print the module to stderr under a stage label (pipeline debugging)";
+  let description = [{
+    Inserted by the TensorForge pipelines after each named stage when their
+    `print-after-each` option is set. Prints
+    `// ----- tforge: after <label> -----` followed by the module. Combine with
+    --mlir-print-debuginfo to see which source location each op came from.
+  }];
+  let options = [
+    Option<"label", "label", "std::string", /*default=*/"\"\"", "Stage label">,
+  ];
+}
+
 #endif // TENSORFORGE_PASSES

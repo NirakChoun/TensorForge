@@ -36,7 +36,7 @@
 
 // N = 128 is not a multiple of BN = 48: the staged kernel requires the caller
 // to pad the problem.
-// NOTPADDED: error: tforge-gpu-tile: tile-k needs static tiles; pad the problem to multiples of the block and K tiles
+// NOTPADDED: gpu-staged.mlir:[[# @LINE + 3]]:9: error: tforge-gpu-tile: tile-k needs static tiles; pad the problem to multiples of the block and K tiles
 
 func.func @entry(%x: tensor<128x64xf32>, %w: tensor<64x128xf32>, %b: tensor<128xf32>) -> tensor<128x128xf32> {
   %mm = tforge.matmul %x, %w : tensor<128x64xf32>, tensor<64x128xf32> -> tensor<128x128xf32>

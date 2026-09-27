@@ -37,6 +37,11 @@ std::string joinSizes(ArrayRef<int64_t> sizes) {
     s += (i ? "," : "") + std::to_string(sizes[i]);
   return s;
 }
+/// Appends a labeled IR dump after a named stage when print-after-each is set.
+void stage(std::string &p, bool enabled, const char *label) {
+  if (enabled)
+    p += std::string("tforge-print-ir{label=") + label + "},";
+}
 } // namespace
 
 std::string mlir::tforge::cpuPipelineString(const CpuPipelineOptions &o) {
@@ -49,6 +54,7 @@ std::string mlir::tforge::cpuPipelineString(const CpuPipelineOptions &o) {
   // bufferization write every op in place into one buffer. The baseline keeps
   // one buffer per op; Stage 5 measures reuse and fusion explicitly.
   p += "convert-tforge-to-linalg,canonicalize,";
+  stage(p, o.printAfterEach, "tforge-to-linalg");
   if (o.reuse)
     p += "cse,";
   if (o.fuseElementwise)
@@ -76,6 +82,7 @@ std::string mlir::tforge::cpuPipelineString(const CpuPipelineOptions &o) {
     // Empty-tensor elimination makes the fused tile chain write in place.
     p += "eliminate-empty-tensors,";
   }
+  stage(p, o.printAfterEach, "fusion-tiling-vectorization");
   // Bufferize the whole module, including function boundaries, with identity
   // layouts so the C interface sees plain row-major memrefs. Results become
   // caller-provided out-params; a statically sized result allocation is
@@ -94,12 +101,14 @@ std::string mlir::tforge::cpuPipelineString(const CpuPipelineOptions &o) {
   if (tiled)
     p += "func.func(buffer-loop-hoisting),";
   p += "buffer-deallocation-pipeline,canonicalize,";
+  stage(p, o.printAfterEach, "bufferization");
   // Loops and LLVM dialect.
   p += "convert-linalg-to-loops,";
   if (o.vectorize)
     p += "func.func(lower-vector-multi-reduction),convert-vector-to-scf,";
   p += "expand-strided-metadata,lower-affine,convert-scf-to-cf,"
        "func.func(llvm-request-c-wrappers),";
+  stage(p, o.printAfterEach, "loops");
   // Contractions become vector.outerproduct and then vector.fma per row.
   if (o.vectorize)
     p += "convert-vector-to-llvm{vector-contract-lowering=outerproduct},";
@@ -133,11 +142,13 @@ std::string mlir::tforge::gpuPipelineString(const GpuPipelineOptions &o) {
   p += "convert-tforge-to-linalg,canonicalize,";
   if (o.fuseElementwise)
     p += "linalg-fuse-elementwise-ops,canonicalize,";
+  stage(p, o.printAfterEach, "tforge-to-linalg");
   p += "func.func(tforge-gpu-tile{block-tile=" + joinSizes(bt) +
        " thread-tile=" + joinSizes(tt) + " tile-k=" + std::to_string(o.tileK) +
        (o.promote ? " promote=1" : "") + print + "}),canonicalize,";
   if (o.vectorize)
     p += "func.func(tforge-vectorize),canonicalize,";
+  stage(p, o.printAfterEach, "gpu-tiling");
   p += "eliminate-empty-tensors,";
   p += "one-shot-bufferize{bufferize-function-boundaries=1 "
        "function-boundary-type-conversion=identity-layout-map},canonicalize,";
@@ -147,13 +158,16 @@ std::string mlir::tforge::gpuPipelineString(const GpuPipelineOptions &o) {
        "modify-public-functions=1},cse,canonicalize,";
   // Shared-memory tiles are allocated inside the K loop; hoist them.
   p += "func.func(buffer-loop-hoisting),";
+  stage(p, o.printAfterEach, "bufferization");
   p += "func.func(tforge-gpu-map{block-dims=" + std::to_string(tx) + "," +
        std::to_string(ty) + ",1" + print + "}),canonicalize,";
+  stage(p, o.printAfterEach, "gpu-mapping");
   p += "convert-linalg-to-loops,canonicalize,";
   p += "func.func(tforge-gpu-sink-constants),gpu-kernel-outlining,";
   p += "expand-strided-metadata,lower-affine,convert-scf-to-cf,";
   // Bare pointers: each memref kernel argument becomes one pointer, which the
   // CUDA driver-API runner passes directly.
+  stage(p, o.printAfterEach, "outlining");
   p += "gpu.module(convert-gpu-to-nvvm{use-bare-ptr-memref-call-conv=1}),"
        "reconcile-unrealized-casts,";
   bool aligned = o.vectorize && o.tileK > 0 && o.tileK % 4 == 0 &&

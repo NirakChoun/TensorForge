@@ -36,6 +36,10 @@ struct CpuPipelineOptions : public PassPipelineOptions<CpuPipelineOptions> {
       llvm::cl::desc("Vectorize static register tiles and lower through the "
                      "Vector dialect"),
       llvm::cl::init(false)};
+  Option<bool> printAfterEach{
+      *this, "print-after-each",
+      llvm::cl::desc("Print the IR after each named TensorForge stage to stderr"),
+      llvm::cl::init(false)};
 };
 
 struct GpuPipelineOptions : public PassPipelineOptions<GpuPipelineOptions> {
@@ -57,6 +61,10 @@ struct GpuPipelineOptions : public PassPipelineOptions<GpuPipelineOptions> {
   Option<bool> vectorize{*this, "vectorize",
                          llvm::cl::desc("Vectorize thread tiles and copies"),
                          llvm::cl::init(false)};
+  Option<bool> printAfterEach{
+      *this, "print-after-each",
+      llvm::cl::desc("Print the IR after each named TensorForge stage to stderr"),
+      llvm::cl::init(false)};
   Option<bool> printScript{
       *this, "print-script",
       llvm::cl::desc("Print the generated transform scripts to stderr"),
