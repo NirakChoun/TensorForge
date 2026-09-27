@@ -98,6 +98,10 @@ The analytical cost model's pick reaches 0.74 to 0.90 of the autotuned best, clo
 
 Before the 8-shape run, one trial at 1000^3 (scratch CSV, not committed) checked the drivers: model pick b32x64-t8x8-k32 0.0975 ms, best b32x64-t4x4-k32 0.0891 ms, ratio 0.914, Spearman 0.423. The model was not changed after it. The naive fused kernel is about 2x faster than in Stage 7 because constant sinking (Stage 8) made the K-loop bound a constant, which lets LLVM unroll it.
 
+## E4 report
+
+Both pipelines take `print-after-each=1`, which prints the module after each named stage (4 CPU, 5 GPU) under a `// ----- tforge: after <stage> -----` header, through a new pass `tforge-print-ir`. With `--mlir-print-debuginfo`, lowered ops carry the `tforge` source location; the staged-kernel error is reported at the `tforge.matmul`'s `file:line:col`. 15/15 lit tests pass (new `test/Pipelines/print-after-each.mlir`; `gpu-staged.mlir` now checks the location). Commit e5e1490. Details in `docs/debugging.md`. Extended-stage commits use the prefixes `e1:` to `e4:` (the brief's `stageN:` format covers only numbered stages).
+
 ## Open questions
 
 - Stage 9: the cost model has no per-warp issue or register-pressure term; whether adding them closes the 0.81 gap was not tested.
