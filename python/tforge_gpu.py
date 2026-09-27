@@ -60,10 +60,11 @@ def padded_shape(m, n, k, options):
 
 
 def compile_kernel(workload, m, n, k, options="", tag="default"):
+    """Compile one GPU kernel. For elementwise workloads k is ignored."""
     d = ART / tag / f"{workload}_{m}x{n}x{k}"
     d.mkdir(parents=True, exist_ok=True)
     pm, pn, pk = padded_shape(m, n, k, options)
-    (d / "input.mlir").write_text(tc.gen_mlir(workload, pm, pn, pk))
+    (d / "input.mlir").write_text(tc.gen_mlir(workload, pm, pn, pk if workload in ("matmul", "mbr") else None))
     flag = f"--tforge-gpu-pipeline={options}" if options else "--tforge-gpu-pipeline"
     run([OPT, d / "input.mlir", flag, "-o", d / "device.mlir"])
     run(["mlir-translate", "--mlir-to-llvmir", d / "device.mlir", "-o", d / "k.ll"])
@@ -87,20 +88,38 @@ def compile_kernel(workload, m, n, k, options="", tag="default"):
 
 
 def _bench_cmd(workload, m, n, k, kdir=None, launch=None, mode="kernel"):
-    cmd = [GPU_BENCH, "--mode", mode, "--workload", workload, "--m", m, "--n", n, "--k", k]
+    cmd = [GPU_BENCH, "--mode", mode, "--workload", workload, "--m", m, "--n", n, "--k", k or 1]
     if mode == "kernel":
         cmd += ["--cubin", kdir / "k.cubin", "--kernel", launch["kernel"],
                 "--grid", ",".join(map(str, launch["grid"])),
                 "--block", ",".join(map(str, launch["block"])),
                 "--args", ",".join(launch["args"])]
-        pm, pn, pk = launch.get("padded", [m, n, k])
-        cmd += ["--pm", pm, "--pn", pn, "--pk", pk]
+        if workload in ("matmul", "mbr"):
+            pm, pn, pk = launch.get("padded", [m, n, k])
+            cmd += ["--pm", pm, "--pn", pn, "--pk", pk]
     return cmd
 
 
+def info(workload, m, n, k, kdir, launch):
+    """Registers, shared memory, and occupancy from the CUDA occupancy API."""
+    return json.loads(run(_bench_cmd(workload, m, n, k, kdir, launch) + ["--info-only"]))
+
+
 def check(workload, m, n, k, kdir=None, launch=None, mode="kernel", seed=1234):
-    """Same FP64 bound as the CPU check (tforge_cpu.check); also returns the output."""
+    """Same FP64 bound as the CPU check (tforge_cpu.check); also returns the output.
+    Elementwise workloads (bias_add, relu) must match NumPy float32 exactly."""
     ins = tc.make_inputs(workload, m, n, k, seed)
+    if workload in ("bias_add", "relu"):
+        with tempfile.TemporaryDirectory() as td:
+            for name, arr in ins.items():
+                arr.tofile(f"{td}/{name}.bin")
+            run(_bench_cmd(workload, m, n, k, kdir, launch, mode) +
+                ["--warmup", 0, "--reps", 1, "--in-dir", td, "--out", f"{td}/out.bin"])
+            out = np.fromfile(f"{td}/out.bin", dtype=np.float32).reshape(m, n)
+        ref = ins["a"] + ins["bias"] if workload == "bias_add" else np.maximum(ins["a"], np.float32(0))
+        exact = bool(np.array_equal(out, ref))
+        return {"pass": exact, "nan_count": int(np.isnan(out).sum()), "err_over_bound": 0.0 if exact else float("inf"),
+                "max_abs_err": float(np.max(np.abs(out.astype(np.float64) - ref)))}, out
     with tempfile.TemporaryDirectory() as td:
         for name, arr in ins.items():
             arr.tofile(f"{td}/{name}.bin")

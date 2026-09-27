@@ -5,6 +5,7 @@ Workloads and their entry signatures (tensors, row-major f32):
   relu    entry(a: MxN) -> MxN
   matmul  entry(a: MxK, b: KxN) -> MxN
   mbr     entry(a: MxK, b: KxN, bias: N) -> MxN      relu(a @ b + bias)
+  bias_add entry(a: MxN, bias: N) -> MxN              (GPU ablation baseline only)
 """
 
 import json
@@ -30,6 +31,10 @@ def gen_mlir(workload, m, n, k=None):
     if workload == "add":
         return (f"func.func @entry(%a: {t(m, n)}, %b: {t(m, n)}) -> {t(m, n)} {{\n"
                 f"  %0 = tforge.add %a, %b : {t(m, n)}, {t(m, n)} -> {t(m, n)}\n"
+                f"  return %0 : {t(m, n)}\n}}\n")
+    if workload == "bias_add":
+        return (f"func.func @entry(%a: {t(m, n)}, %bias: {t(n)}) -> {t(m, n)} {{\n"
+                f"  %0 = tforge.bias_add %a, %bias : {t(m, n)}, {t(n)} -> {t(m, n)}\n"
                 f"  return %0 : {t(m, n)}\n}}\n")
     if workload == "relu":
         return (f"func.func @entry(%a: {t(m, n)}) -> {t(m, n)} {{\n"
@@ -88,6 +93,8 @@ def make_inputs(workload, m, n, k, seed=1234):
         return {"a": u(m, n), "b": u(m, n)}
     if workload == "relu":
         return {"a": u(m, n)}
+    if workload == "bias_add":
+        return {"a": u(m, n), "bias": u(n)}
     if workload == "matmul":
         return {"a": u(m, k), "b": u(k, n)}
     return {"a": u(m, k), "b": u(k, n), "bias": u(n)}

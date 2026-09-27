@@ -18,8 +18,12 @@
 // padding cost is part of the measured time.
 //
 // Buffers are indexed as the host entry function's arguments:
-//   matmul: arg0=A (MxK) arg1=B (KxN) arg2=C (MxN)
-//   mbr:    arg0=A arg1=B arg2=bias (N) arg3=C
+//   matmul:   arg0=A (MxK) arg1=B (KxN) arg2=C (MxN)
+//   mbr:      arg0=A arg1=B arg2=bias (N) arg3=C
+//   bias_add: arg0=X (MxN) arg1=bias (N) arg2=Y (MxN)
+//   relu:     arg0=X (MxN) arg1=Y (MxN)
+// --info-only prints registers, shared memory, and occupancy (CUDA occupancy
+// API) for the kernel without running it; the Stage 9 cost model uses this.
 // Output: one JSON object on stdout.
 
 #include <cublas_v2.h>
@@ -72,6 +76,7 @@ struct Args {
   long m = 0, n = 0, k = 0, pm = 0, pn = 0, pk = 0;
   int warmup = 10, reps = 100;
   bool flush = false;
+  bool infoOnly = false;
   unsigned seed = 1234;
 };
 
@@ -113,13 +118,18 @@ static Args parse(int argc, char **argv) {
     else if (f == "--warmup") a.warmup = std::stoi(next());
     else if (f == "--reps") a.reps = std::stoi(next());
     else if (f == "--flush") a.flush = true;
+    else if (f == "--info-only") a.infoOnly = true;
     else if (f == "--in-dir") a.inDir = next();
     else if (f == "--out") a.out = next();
     else if (f == "--seed") a.seed = std::stoul(next());
     else die("unknown flag " + f);
   }
-  if (a.workload != "matmul" && a.workload != "mbr") die("--workload matmul|mbr");
-  if (a.m <= 0 || a.n <= 0 || a.k <= 0) die("need --m --n --k");
+  bool gemm = a.workload == "matmul" || a.workload == "mbr";
+  if (!gemm && a.workload != "bias_add" && a.workload != "relu")
+    die("--workload matmul|mbr|bias_add|relu");
+  if (a.m <= 0 || a.n <= 0 || (gemm && a.k <= 0)) die("need --m --n (and --k)");
+  if (!gemm) a.k = 1;
+  if (!gemm && a.mode == "cublas") die("cublas mode needs matmul or mbr");
   if (!a.pm) a.pm = a.m;
   if (!a.pn) a.pn = a.n;
   if (!a.pk) a.pk = a.k;
@@ -177,23 +187,32 @@ int main(int argc, char **argv) {
 
   // Host data and device buffers, in host-entry-argument order.
   std::mt19937 rng(a.seed);
-  std::vector<float> hA(M * K), hB(K * N), hBias(N), hC(M * N);
+  const bool elementwise = a.workload == "bias_add" || a.workload == "relu";
+  std::vector<float> hA(elementwise ? M * N : M * K), hB(elementwise ? 0 : K * N), hBias(N),
+      hC(M * N);
   fill(hA, a, "a", rng);
-  fill(hB, a, "b", rng);
-  if (mbr) fill(hBias, a, "bias", rng);
-  float *dA, *dB, *dBias = nullptr, *dC;
+  if (!elementwise) fill(hB, a, "b", rng);
+  const bool hasBias = mbr || a.workload == "bias_add";
+  if (hasBias) fill(hBias, a, "bias", rng);
+  float *dA, *dB = nullptr, *dBias = nullptr, *dC;
   CUDA(cudaMalloc(&dA, hA.size() * 4));
-  CUDA(cudaMalloc(&dB, hB.size() * 4));
   CUDA(cudaMalloc(&dC, hC.size() * 4));
-  if (mbr) CUDA(cudaMalloc(&dBias, N * 4));
   CUDA(cudaMemcpy(dA, hA.data(), hA.size() * 4, cudaMemcpyHostToDevice));
-  CUDA(cudaMemcpy(dB, hB.data(), hB.size() * 4, cudaMemcpyHostToDevice));
-  if (mbr) CUDA(cudaMemcpy(dBias, hBias.data(), N * 4, cudaMemcpyHostToDevice));
-  std::vector<void *> bufs = {dA, dB};
-  if (mbr) bufs.push_back(dBias);
-  bufs.push_back(dC);
+  if (!elementwise) {
+    CUDA(cudaMalloc(&dB, hB.size() * 4));
+    CUDA(cudaMemcpy(dB, hB.data(), hB.size() * 4, cudaMemcpyHostToDevice));
+  }
+  if (hasBias) {
+    CUDA(cudaMalloc(&dBias, N * 4));
+    CUDA(cudaMemcpy(dBias, hBias.data(), N * 4, cudaMemcpyHostToDevice));
+  }
+  std::vector<void *> bufs;
+  if (a.workload == "matmul") bufs = {dA, dB, dC};
+  else if (mbr) bufs = {dA, dB, dBias, dC};
+  else if (a.workload == "bias_add") bufs = {dA, dBias, dC};
+  else bufs = {dA, dC};
   const long PM = a.pm, PN = a.pn, PK = a.pk;
-  const bool padded = a.mode == "kernel" && (PM != M || PN != N || PK != K);
+  const bool padded = a.mode == "kernel" && !elementwise && (PM != M || PN != N || PK != K);
   float *pA = nullptr, *pB = nullptr, *pBias = nullptr, *pC = nullptr;
   if (padded) {
     // Zeroed once: the pad regions are never written by the copies, so they
@@ -264,6 +283,12 @@ int main(int argc, char **argv) {
     int maxThreadsSm = 0, warp = 32;
     CU(cuDeviceGetAttribute(&maxThreadsSm, CU_DEVICE_ATTRIBUTE_MAX_THREADS_PER_MULTIPROCESSOR, dev));
     occupancy = double(blocksPerSm * ((threads + warp - 1) / warp)) / (maxThreadsSm / warp);
+    if (a.infoOnly) {
+      std::printf("{\"regs\": %d, \"local_bytes\": %d, \"static_smem\": %d, "
+                  "\"blocks_per_sm\": %d, \"theo_occupancy\": %.3f, \"threads\": %d}\n",
+                  regs, localBytes, smem, blocksPerSm, occupancy, threads);
+      return 0;
+    }
     run = [&] {
       if (padded) {
         CUDA(cudaMemcpy2DAsync(pA, PK * 4, dA, K * 4, K * 4, M, cudaMemcpyDeviceToDevice, stream));
