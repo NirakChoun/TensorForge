@@ -1,6 +1,6 @@
 # TensorForge progress log
 
-Current state: Core stages 0-9 complete. Next: Extended stages E4, E1, E3, E2, then final polish.
+Current state: Core stages 0-9, Extended stages E1-E4, and final polish complete. Stretch items were not started (per the brief). No Slurm job is held.
 
 ## How to resume
 
@@ -115,6 +115,10 @@ One fused kernel compiles end to end in 0.18 to 0.29 s, independent of problem s
 ## E2 report
 
 On the RTX A6000 (sm_86, 84 SMs), the unchanged cost model's pick reaches 0.68 to 0.86 of the autotuned best, clock-adjusted (geometric mean 0.78, vs 0.81 on Blackwell); Spearman -0.09 to 0.47. It picks the same kind of configuration on both GPUs (8x8 thread tiles in 32x64 blocks), while the measured best differs between them (8x8 in 128x128 blocks wins at 4096^3 and 2560^3 on the A6000). All 840 runs passed correctness. Results `results/gpu/e2_a6000_autotune.csv`, `e2_a6000_summary.csv` (commit 572f506, job 24153819). Details in `docs/e2_a6000.md`. The target is selected with `TF_GPU_ARCH`, `TF_GPU_SMS`, `TF_GPU_DRAM_BW`; `scripts/devjob.sh start a6000` holds an A6000 allocation.
+
+## Final polish report
+
+README rewritten (two-sentence description, text architecture diagram, upstream vs TensorForge, build steps, worked example with real output, results summary); `docs/index.md` lists every document; `examples/mbr.mlir` is the worked example input. Clean-clone check (job 24153819): a fresh `git clone` of commit 162bd29 configured and built with `JOBS=8 scripts/build.sh`, 15/15 lit tests passed, the GPU runner built, and fused `mbr` at 777x1111x333 passed the FP64 check on the CPU (vectorized pipeline) and on the A6000 (staged pipeline). The clone was deleted afterwards. Polish commits use the prefix `polish:`.
 
 ## Open questions
 
