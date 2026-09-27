@@ -42,6 +42,8 @@ std::string joinSizes(ArrayRef<int64_t> sizes) {
 std::string mlir::tforge::cpuPipelineString(const CpuPipelineOptions &o) {
   std::string p;
   bool tiled = !o.tileSizes.empty();
+  if (o.vectorize && o.regTile.empty())
+    llvm::report_fatal_error("tforge-cpu-pipeline: vectorize requires reg-tile");
   // tforge -> linalg on tensors. No CSE before bufferization: CSE merges the
   // identical tensor.empty inits of consecutive ops, which makes one-shot
   // bufferization write every op in place into one buffer. The baseline keeps
@@ -55,6 +57,20 @@ std::string mlir::tforge::cpuPipelineString(const CpuPipelineOptions &o) {
     p += "func.func(tforge-tile-and-fuse{tile-sizes=" +
          joinSizes(o.tileSizes) + " tile-k=" + std::to_string(o.tileK) +
          "}),canonicalize,";
+  }
+  if (!o.regTile.empty()) {
+    ArrayRef<int64_t> r = o.regTile;
+    int64_t kr = r.size() > 2 ? r[2] : 0;
+    p += "func.func(tforge-tile-and-fuse{tile-sizes=" +
+         joinSizes(r.take_front(std::min<size_t>(2, r.size()))) +
+         " tile-k=" + std::to_string(kr) + " peel=1}),canonicalize,";
+  }
+  // Vectorize register tiles; then move the K-loop accumulator read/write out
+  // of the loop so it stays in registers (loop-carried vector).
+  if (o.vectorize)
+    p += "func.func(tforge-vectorize),canonicalize,"
+         "loop-invariant-subset-hoisting,canonicalize,";
+  if (tiled || !o.regTile.empty()) {
     // No CSE here: it would merge the fill's tensor.empty with the output's,
     // which forces a full-size temporary and a copy after bufferization.
     // Empty-tensor elimination makes the fused tile chain write in place.
@@ -79,12 +95,19 @@ std::string mlir::tforge::cpuPipelineString(const CpuPipelineOptions &o) {
     p += "func.func(buffer-loop-hoisting),";
   p += "buffer-deallocation-pipeline,canonicalize,";
   // Loops and LLVM dialect.
-  p += "convert-linalg-to-loops,expand-strided-metadata,lower-affine,"
-       "convert-scf-to-cf,func.func(llvm-request-c-wrappers),";
+  p += "convert-linalg-to-loops,";
+  if (o.vectorize)
+    p += "func.func(lower-vector-multi-reduction),convert-vector-to-scf,";
+  p += "expand-strided-metadata,lower-affine,convert-scf-to-cf,"
+       "func.func(llvm-request-c-wrappers),";
+  // Contractions become vector.outerproduct and then vector.fma per row.
+  if (o.vectorize)
+    p += "convert-vector-to-llvm{vector-contract-lowering=outerproduct},";
   // Generic allocation functions let the harness count allocated bytes.
   p += "finalize-memref-to-llvm{use-generic-functions=1},";
   p += "convert-math-to-llvm,convert-arith-to-llvm,convert-cf-to-llvm,"
-       "convert-func-to-llvm,convert-index-to-llvm,reconcile-unrealized-casts";
+       "convert-func-to-llvm,convert-index-to-llvm,convert-ub-to-llvm,"
+       "reconcile-unrealized-casts";
   return p;
 }
 

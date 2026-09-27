@@ -27,6 +27,15 @@ struct CpuPipelineOptions : public PassPipelineOptions<CpuPipelineOptions> {
   Option<int64_t> tileK{*this, "tile-k",
                         llvm::cl::desc("Also tile the reduction loop"),
                         llvm::cl::init(0)};
+  ListOption<int64_t> regTile{
+      *this, "reg-tile",
+      llvm::cl::desc("Second-level register tile mr,nr,kr inside the cache "
+                     "tiles (peeled so full tiles are static)")};
+  Option<bool> vectorize{
+      *this, "vectorize",
+      llvm::cl::desc("Vectorize static register tiles and lower through the "
+                     "Vector dialect"),
+      llvm::cl::init(false)};
 };
 
 /// The CPU pipeline as a textual pass pipeline (module-anchored elements).

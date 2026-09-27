@@ -8,6 +8,10 @@
 // tile of the matmul result is produced and consumed while it is in cache and
 // is never materialized at full size.
 //
+// The pass is applied twice by the CPU pipeline: once for cache tiles and once
+// for register tiles (with reduction tiling of the fused matmul and loop
+// peeling, so full register tiles have static shapes and can be vectorized).
+//
 //===----------------------------------------------------------------------===//
 
 #include "TensorForge/Passes.h"
@@ -18,6 +22,7 @@
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SCF/Transforms/TileUsingInterface.h"
+#include "mlir/Dialect/SCF/Transforms/Transforms.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Tensor/Transforms/Transforms.h"
 #include "mlir/IR/IRMapping.h"
@@ -132,19 +137,20 @@ struct TileAndFusePass
     if (tileSizes.empty())
       return;
     func::FuncOp func = getOperation();
-    IRRewriter rewriter(&getContext());
+    MLIRContext *ctx = &getContext();
+    IRRewriter rewriter(ctx);
+    // Loops created by this pass, outermost first within each tiling.
+    SmallVector<scf::ForOp> created;
 
     for (TilingInterface root : findRoots(func)) {
-      // Parallel loops take the requested sizes in order; reduction loops are
-      // left whole here (K tiling is a separate option).
+      // Parallel loops take the requested sizes in order. Reduction loops are
+      // not tiled here; tile-k applies to the fused contraction below.
       SmallVector<OpFoldResult> sizes;
       unsigned next = 0;
       for (utils::IteratorType it : root.getLoopIteratorTypes()) {
         int64_t s = 0;
         if (it == utils::IteratorType::parallel && next < tileSizes.size())
           s = tileSizes[next++];
-        else if (it == utils::IteratorType::reduction)
-          s = tileK;
         sizes.push_back(rewriter.getIndexAttr(s));
       }
 
@@ -163,16 +169,63 @@ struct TileAndFusePass
       }
       for (auto [orig, repl] : result->replacements)
         rewriter.replaceAllUsesWith(orig, repl);
+      for (LoopLikeOpInterface l : result->loops)
+        if (auto f = dyn_cast<scf::ForOp>(l.getOperation()))
+          created.push_back(f);
+
+      if (tileK > 0) {
+        for (Operation *op : result->tiledAndFusedOps) {
+          auto linalgOp = dyn_cast<linalg::LinalgOp>(op);
+          if (!linalgOp || linalgOp.getNumReductionLoops() == 0)
+            continue;
+          if (failed(tileReduction(rewriter, cast<TilingInterface>(op),
+                                   created)))
+            return signalPassFailure();
+        }
+      }
     }
 
-    RewritePatternSet patterns(&getContext());
-    patterns.add<EpilogueIntoProducerInit>(&getContext());
+    // Peel innermost loops first so the full-tile body of every loop has
+    // static trip-count-independent tile sizes. Peeling fails (and is skipped)
+    // when a loop already divides evenly.
+    if (peel) {
+      for (scf::ForOp loop : llvm::reverse(created)) {
+        scf::ForOp partial;
+        (void)scf::peelForLoopAndSimplifyBounds(rewriter, loop, partial);
+      }
+    }
+
+    RewritePatternSet patterns(ctx);
+    patterns.add<EpilogueIntoProducerInit>(ctx);
     // extract_slice(tensor.empty) -> tensor.empty(tile): the fused fill then
     // starts from a tile-sized empty that -eliminate-empty-tensors can replace
     // with the output tile.
     tensor::populateFoldTensorEmptyPatterns(patterns);
     if (failed(applyPatternsGreedily(func, std::move(patterns))))
       return signalPassFailure();
+  }
+
+  /// Tiles the reduction loops of `op` by tile-k with an scf.for that carries
+  /// the accumulator (matmul accumulates into its init, so this is exact
+  /// reordering of the K sum only at tile granularity: see docs/numerics.md).
+  LogicalResult tileReduction(IRRewriter &rewriter, TilingInterface op,
+                              SmallVectorImpl<scf::ForOp> &created) {
+    SmallVector<OpFoldResult> sizes;
+    for (utils::IteratorType it : op.getLoopIteratorTypes())
+      sizes.push_back(rewriter.getIndexAttr(
+          it == utils::IteratorType::reduction ? int64_t(tileK) : 0));
+    scf::SCFTilingOptions o;
+    o.setTileSizes(sizes);
+    o.setLoopType(scf::SCFTilingOptions::LoopType::ForOp);
+    rewriter.setInsertionPoint(op);
+    FailureOr<scf::SCFTilingResult> r = scf::tileUsingSCF(rewriter, op, o);
+    if (failed(r))
+      return op->emitError("tforge-tile-and-fuse: reduction tiling failed");
+    rewriter.replaceOp(op, r->replacements);
+    for (LoopLikeOpInterface l : r->loops)
+      if (auto f = dyn_cast<scf::ForOp>(l.getOperation()))
+        created.push_back(f);
+    return success();
   }
 };
 
