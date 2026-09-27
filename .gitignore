@@ -1,0 +1,23 @@
+# Build trees and binaries
+build*/
+*.o
+*.a
+*.so
+*.cubin
+*.fatbin
+
+# Slurm and run logs
+logs/
+slurm-*.out
+
+# Toolchain environment (lives in ~/tforge-env, never in the repo)
+tforge-env/
+.mamba/
+
+# Editor and OS noise
+__pycache__/
+*.pyc
+.DS_Store
+.vscode/
+.cache/
+compile_commands.json

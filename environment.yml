@@ -1,0 +1,17 @@
+# TensorForge toolchain (conda-forge). Create with:
+#   micromamba create -p ~/tforge-env -f environment.yml
+# FileCheck, not, and count are not packaged by conda-forge; after creating the
+# environment, run scripts/build_lit_tools.sh (Slurm) to add them.
+name: tforge-env
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12.14
+  - mlir=23.1.2=h02f0aee_0
+  - llvmdev=23.1.2=h7399f5f_0
+  - llvm-tools=23.1.2=h7148c6a_0
+  - lit=23.1.2
+  - cmake=4.4.3
+  - ninja=1.13.2
+  - gxx_linux-64=15.3.0
+  - numpy=2.5.3
