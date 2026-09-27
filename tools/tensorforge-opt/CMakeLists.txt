@@ -8,6 +8,7 @@ llvm_update_compile_flags(tensorforge-opt)
 target_link_libraries(tensorforge-opt PRIVATE
   MLIRTForge
   MLIRTForgeToLinalg
+  MLIRTForgePipelines
   ${dialect_libs}
   ${conversion_libs}
   ${extension_libs}

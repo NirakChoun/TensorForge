@@ -14,5 +14,5 @@ cmake -G Ninja -S . -B "$BUILD_DIR" \
   -DLLVM_DIR="$LLVM_DIR" \
   -DCMAKE_C_COMPILER="$CC" \
   -DCMAKE_CXX_COMPILER="$CXX"
-ninja -C "$BUILD_DIR" -j "$JOBS" tensorforge-opt
+ninja -C "$BUILD_DIR" -j "$JOBS" tensorforge-opt tforge-cpu-bench
 ninja -C "$BUILD_DIR" -j "$JOBS" check-tensorforge
