@@ -26,6 +26,8 @@ ART = tc.ART / "gpu"
 # E2 sets TF_GPU_ARCH=sm_86 TF_GPU_SMS=84 for the RTX A6000.
 SM = os.environ.get("TF_GPU_ARCH", "sm_120")
 SMS = int(os.environ.get("TF_GPU_SMS", "188"))
+if SM != "sm_120":  # keep other targets' artifacts apart from the default ones
+    ART = ART / SM
 FP32_LANES_PER_SM = 128  # Blackwell: 24064 CUDA cores / 188 SMs; GA102 (A6000): 128 per SM
 
 

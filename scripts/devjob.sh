@@ -5,6 +5,7 @@
 #
 #   scripts/devjob.sh start cpu [hours]   # 8 CPUs, 32 GB
 #   scripts/devjob.sh start gpu [hours]   # + one RTX PRO 6000 Blackwell
+#   scripts/devjob.sh start a6000 [hours] # + one RTX A6000 (E2)
 #   scripts/devjob.sh stop
 #   scripts/devjob.sh status
 set -euo pipefail
@@ -20,6 +21,7 @@ case "$cmd" in
     fi
     res=(--cpus-per-task=8 --mem=32G)
     [[ "$mode" == "gpu" ]] && res+=(--gpus=6000_blackwell:1)
+    [[ "$mode" == "a6000" ]] && res+=(--gpus=a6000:1)
     mkdir -p "$HOME/TensorForge/logs"
     id=$(sbatch --parsable --account=publicgrp --partition=high --job-name="tf-dev-$mode" \
          --time="$hours:00:00" "${res[@]}" \
