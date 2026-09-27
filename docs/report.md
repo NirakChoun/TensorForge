@@ -67,7 +67,7 @@ Hardware: CPU results on an AMD EPYC 7532 (Zen 2) node, single thread, pinned (`
 |---|---|---|
 | 4 | Scalar CPU baseline matmul 0.6 to 2.8 GFLOP/s; OpenBLAS (1 thread) 44 to 92 | `results/cpu/stage4.csv` |
 | 5 | Fusion removes both MxN temporaries; time within a few percent (scalar matmul dominates) | `results/cpu/stage5.csv` |
-| 6 | Tiled and vectorized fused kernel 81 to 102 GFLOP/s single-threaded; at or above OpenBLAS matmul at 4 of 5 shapes | `results/cpu/stage6_best.csv` |
+| 6 | Tiled and vectorized fused kernel 81 to 100 GFLOP/s single-threaded; at or above OpenBLAS matmul at 4 of 5 shapes | `results/cpu/stage6_best.csv` |
 | 7 | Naive GPU kernel (one output per thread) 2.3 to 3.6 TFLOP/s; cuBLAS 13 to 52 | `results/gpu/stage7.csv` |
 | 8 | Staged GPU kernel 41.6 TFLOP/s at 2048^3 (cuBLAS + epilogue 50.7, Triton fused 41.7); ahead of KernelForge v6 at every shape; 9% ahead of cuBLAS + epilogue at 777x1111x333 | `results/gpu/stage8.csv`, `stage8_triton.csv`, `kernelforge_sgemm.csv` |
 | 9 | Cost-model pick reaches 0.74 to 0.90 of autotuned best (geometric mean 0.81); autotuned best 44.0 TFLOP/s at 2048^3 | `results/gpu/stage9_*.csv` |
@@ -76,7 +76,7 @@ Stage 9 ablation, fused `mbr` at 2048^3, GFLOP/s: unfused baseline 6380, +fusion
 
 ## Observations
 
-- On both targets, the transformation that changes throughput most is vectorization combined with register tiling. On the GPU it adds 2.4x to 2.6x on top of shared-memory promotion; on the CPU the step from scalar to tiled and vectorized code takes 0.6-2.8 to 81-102 GFLOP/s.
+- On both targets, the transformation that changes throughput most is vectorization combined with register tiling. On the GPU it adds 2.4x to 2.6x on top of shared-memory promotion; on the CPU the step from scalar to tiled and vectorized code takes 0.6-2.8 to 81-100 GFLOP/s.
 - Fusion's main effect is memory: it removes intermediates, but it changes time little when the matmul is compute-bound.
 - Shared-memory promotion without vectorization and accumulator hoisting is slower than no promotion (Stage 8), because the accumulator makes a round trip through global memory every K step.
 - The cost model underestimates every configuration's time and most strongly favors 8x8 thread tiles in one-warp blocks; its ranking correlates weakly with measurement (Spearman -0.00 to 0.47).
