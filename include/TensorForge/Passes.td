@@ -25,4 +25,28 @@ def ConvertTForgeToLinalg : Pass<"convert-tforge-to-linalg", "ModuleOp"> {
   ];
 }
 
+def TForgeTileAndFuse : Pass<"tforge-tile-and-fuse", "::mlir::func::FuncOp"> {
+  let summary = "Tile the last linalg op of each chain and fuse its producers";
+  let description = [{
+    For each tensor-semantics linalg op whose results feed no other linalg op
+    (the root), tile its parallel loops with `tile-sizes` (and its reduction
+    loop with `tile-k` if nonzero) into scf.for loops and fuse the producer
+    chain (for example fill and matmul feeding an epilogue) into the loop body
+    with upstream `scf::tileConsumerAndFuseProducersUsingSCF`.
+  }];
+  let options = [
+    ListOption<"tileSizes", "tile-sizes", "int64_t",
+               "Tile sizes for the parallel loops of the root, outermost first">,
+    Option<"tileK", "tile-k", "int64_t", /*default=*/"0",
+           "Tile size for the reduction loop of the root (0 = do not tile)">,
+  ];
+  let dependentDialects = [
+    "::mlir::affine::AffineDialect",
+    "::mlir::arith::ArithDialect",
+    "::mlir::linalg::LinalgDialect",
+    "::mlir::scf::SCFDialect",
+    "::mlir::tensor::TensorDialect",
+  ];
+}
+
 #endif // TENSORFORGE_PASSES

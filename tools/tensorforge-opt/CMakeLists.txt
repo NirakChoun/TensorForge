@@ -9,6 +9,7 @@ target_link_libraries(tensorforge-opt PRIVATE
   MLIRTForge
   MLIRTForgeToLinalg
   MLIRTForgePipelines
+  MLIRTForgeTransforms
   ${dialect_libs}
   ${conversion_libs}
   ${extension_libs}

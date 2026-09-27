@@ -30,21 +30,53 @@ void appendOrDie(OpPassManager &pm, const std::string &pipeline) {
 
 } // namespace
 
-std::string mlir::tforge::cpuPipelineString(const CpuPipelineOptions &) {
+namespace {
+std::string joinSizes(ArrayRef<int64_t> sizes) {
+  std::string s;
+  for (size_t i = 0; i < sizes.size(); ++i)
+    s += (i ? "," : "") + std::to_string(sizes[i]);
+  return s;
+}
+} // namespace
+
+std::string mlir::tforge::cpuPipelineString(const CpuPipelineOptions &o) {
   std::string p;
+  bool tiled = !o.tileSizes.empty();
   // tforge -> linalg on tensors. No CSE before bufferization: CSE merges the
   // identical tensor.empty inits of consecutive ops, which makes one-shot
   // bufferization write every op in place into one buffer. The baseline keeps
   // one buffer per op; Stage 5 measures reuse and fusion explicitly.
   p += "convert-tforge-to-linalg,canonicalize,";
+  if (o.reuse)
+    p += "cse,";
+  if (o.fuseElementwise)
+    p += "linalg-fuse-elementwise-ops,canonicalize,";
+  if (tiled) {
+    p += "func.func(tforge-tile-and-fuse{tile-sizes=" +
+         joinSizes(o.tileSizes) + " tile-k=" + std::to_string(o.tileK) +
+         "}),canonicalize,";
+    // No CSE here: it would merge the fill's tensor.empty with the output's,
+    // which forces a full-size temporary and a copy after bufferization.
+    // Empty-tensor elimination makes the fused tile chain write in place.
+    p += "eliminate-empty-tensors,";
+  }
   // Bufferize the whole module, including function boundaries, with identity
   // layouts so the C interface sees plain row-major memrefs. Results become
   // caller-provided out-params; a statically sized result allocation is
   // replaced by the out-param itself, so the harness owns the output buffer.
   p += "one-shot-bufferize{bufferize-function-boundaries=1 "
        "function-boundary-type-conversion=identity-layout-map},";
+  // Tiled loops carry the result buffer as an scf.for iter_arg; canonicalize
+  // folds the loop-carried memref so the function returns the allocation
+  // itself, which buffer-results-to-out-params can then replace with the
+  // out-param (otherwise it copies the whole result at the end).
+  p += "canonicalize,";
   p += "buffer-results-to-out-params{hoist-static-allocs=1 "
        "modify-public-functions=1},";
+  // Tile-sized temporaries are allocated inside the tile loop; hoist them so
+  // each call allocates one tile buffer instead of one per iteration.
+  if (tiled)
+    p += "func.func(buffer-loop-hoisting),";
   p += "buffer-deallocation-pipeline,canonicalize,";
   // Loops and LLVM dialect.
   p += "convert-linalg-to-loops,expand-strided-metadata,lower-affine,"
