@@ -108,8 +108,13 @@ Only FMA contraction changes results: every TensorForge variant without FMA is b
 
 The first E1 run was stopped partway to add a bitwise comparison against the FMA variant; `pkill -f` also ended the `srun` step that ran it (its command line contained the pattern). The rerun is the one recorded.
 
+## E3 report
+
+One fused kernel compiles end to end in 0.18 to 0.29 s, independent of problem size; MLIR passes take 6 to 27 ms of that, and process start-up, LLVM, `ptxas`, and linking take the rest. The staged GPU pipeline is the most expensive (27 ms of passes, led by `convert-gpu-to-nvvm` and `tforge-gpu-map`). Results `results/compile/e3.csv` and `timing_*.txt` (job 24105050). Details in `docs/compile_time.md`. This corrected a Stage 9 statement: `docs/stage9.md` had attributed the cost model's 43 to 74 s per shape to compilation without measuring the split; the claim was removed and the question moved to Open questions.
+
 ## Open questions
 
+- E3: the Stage 9 cost-model time split (compilation vs one-at-a-time occupancy queries) was not measured.
 - E1: TensorForge's large-K error is 3.2x to 5.5x the libraries'; a blocked K reduction was not tried.
 - Stage 9: the cost model has no per-warp issue or register-pressure term; whether adding them closes the 0.81 gap was not tested.
 - Stage 9: the ablation baseline sums three kernel medians and ignores launch gaps; run-to-run variation between near-tied configurations (0.5% at 4096^3) was not measured.

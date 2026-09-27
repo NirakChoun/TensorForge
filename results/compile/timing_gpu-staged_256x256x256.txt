@@ -1,0 +1,47 @@
+===-------------------------------------------------------------------------===
+                         ... Execution time report ...
+===-------------------------------------------------------------------------===
+  Total Execution Time: 0.0272 seconds
+
+  ----Wall Time----  ----Name----
+    0.0002 (  0.9%)  Parser
+    0.0003 (  1.2%)  ConvertTForgeToLinalg
+    0.0002 (  0.6%)  CanonicalizerPass
+    0.0002 (  0.6%)  LinalgElementwiseOpFusionPass
+    0.0001 (  0.3%)  CanonicalizerPass
+    0.0017 (  6.2%)  'func.func' Pipeline
+    0.0017 (  6.1%)    TForgeGpuTile
+    0.0003 (  1.0%)  CanonicalizerPass
+    0.0004 (  1.5%)  'func.func' Pipeline
+    0.0004 (  1.5%)    TForgeVectorize
+    0.0002 (  0.8%)  CanonicalizerPass
+    0.0003 (  0.9%)  EmptyTensorEliminationPass
+    0.0004 (  1.5%)  OneShotBufferizePass
+    0.0004 (  1.4%)  CanonicalizerPass
+    0.0001 (  0.3%)  BufferResultsToOutParamsPass
+    0.0001 (  0.4%)  CSEPass
+    0.0000 (  0.0%)    (A) DominanceInfo
+    0.0003 (  0.9%)  CanonicalizerPass
+    0.0044 ( 16.2%)  'func.func' Pipeline
+    0.0001 (  0.5%)    BufferLoopHoistingPass
+    0.0043 ( 15.7%)    TForgeGpuMap
+    0.0003 (  1.1%)  'func.func' Pipeline
+    0.0002 (  0.8%)    CanonicalizerPass
+    0.0001 (  0.2%)    CSEPass
+    0.0000 (  0.0%)      (A) DominanceInfo
+    0.0007 (  2.7%)  CanonicalizerPass
+    0.0007 (  2.4%)  ConvertLinalgToLoopsPass
+    0.0007 (  2.6%)  CanonicalizerPass
+    0.0003 (  1.0%)  'func.func' Pipeline
+    0.0003 (  1.0%)    TForgeGpuSinkConstants
+    0.0008 (  3.1%)  GpuKernelOutliningPass
+    0.0009 (  3.1%)  ExpandStridedMetadataPass
+    0.0007 (  2.6%)  LowerAffinePass
+    0.0005 (  1.9%)  SCFToControlFlowPass
+    0.0052 ( 19.0%)  'gpu.module' Pipeline
+    0.0052 ( 19.0%)    ConvertGpuOpsToNVVMOps
+    0.0005 (  1.8%)  ReconcileUnrealizedCastsPass
+    0.0005 (  1.8%)  TForgeGpuExtract
+    0.0013 (  4.7%)  Output
+    0.0047 ( 17.3%)  Rest
+    0.0272 (100.0%)  Total

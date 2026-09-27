@@ -61,7 +61,7 @@ Configurations are BM x BN, TM x TN, BK. "% of peak" is % of FP32 peak at each r
 
 The autotuned best at 2048^3 is 44.0 TFLOP/s (0.3905 ms), above the fixed Stage 8 configuration (41.6).
 
-Cost of choosing: the model needs compilation plus an occupancy query per configuration, 43 to 74 s per shape (almost all compilation). The autotuner needs compilation plus 105 checked and timed runs, 80 to 182 s per shape.
+Cost of choosing: the model needs compilation plus an occupancy query per configuration, 43 to 74 s per shape (compilation with 8 in parallel, then 105 occupancy queries one after another; the split was not recorded). The autotuner needs compilation plus 105 checked and timed runs, 80 to 182 s per shape.
 
 Where the model is wrong, over all 840 runs (`python/stage9_analysis.py`, post hoc; the model was not changed):
 

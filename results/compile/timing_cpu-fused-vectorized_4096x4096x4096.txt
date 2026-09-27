@@ -1,0 +1,56 @@
+===-------------------------------------------------------------------------===
+                         ... Execution time report ...
+===-------------------------------------------------------------------------===
+  Total Execution Time: 0.0154 seconds
+
+  ----Wall Time----  ----Name----
+    0.0002 (  1.6%)  Parser
+    0.0003 (  2.1%)  ConvertTForgeToLinalg
+    0.0002 (  1.0%)  CanonicalizerPass
+    0.0001 (  0.9%)  LinalgElementwiseOpFusionPass
+    0.0001 (  0.4%)  CanonicalizerPass
+    0.0007 (  4.7%)  'func.func' Pipeline
+    0.0007 (  4.7%)    TForgeTileAndFuse
+    0.0006 (  4.2%)  CanonicalizerPass
+    0.0003 (  2.2%)  'func.func' Pipeline
+    0.0003 (  2.2%)    TForgeVectorize
+    0.0002 (  1.1%)  CanonicalizerPass
+    0.0002 (  1.0%)  LoopInvariantSubsetHoistingPass
+    0.0003 (  1.7%)  CanonicalizerPass
+    0.0004 (  2.3%)  EmptyTensorEliminationPass
+    0.0005 (  3.2%)  OneShotBufferizePass
+    0.0003 (  1.9%)  CanonicalizerPass
+    0.0001 (  0.4%)  BufferResultsToOutParamsPass
+    0.0001 (  0.5%)  ExpandReallocPass
+    0.0002 (  1.0%)  CanonicalizerPass
+    0.0002 (  1.0%)  OwnershipBasedBufferDeallocationPass
+    0.0002 (  1.5%)  CanonicalizerPass
+    0.0001 (  0.6%)  BufferDeallocationSimplificationPass
+    0.0001 (  0.5%)  LowerDeallocationsPass
+    0.0001 (  0.5%)  CSEPass
+    0.0000 (  0.0%)    (A) DominanceInfo
+    0.0002 (  1.3%)  CanonicalizerPass
+    0.0001 (  0.8%)  CanonicalizerPass
+    0.0001 (  0.5%)  ConvertLinalgToLoopsPass
+    0.0001 (  0.8%)  'func.func' Pipeline
+    0.0001 (  0.8%)    LowerVectorMultiReduction
+    0.0004 (  2.5%)  ConvertVectorToSCF
+    0.0003 (  2.1%)  ExpandStridedMetadataPass
+    0.0001 (  0.8%)  LowerAffinePass
+    0.0002 (  1.0%)  SCFToControlFlowPass
+    0.0001 (  0.4%)  'func.func' Pipeline
+    0.0001 (  0.4%)    LLVMRequestCWrappersPass
+    0.0018 ( 11.5%)  ConvertVectorToLLVMPass
+    0.0006 (  3.9%)  FinalizeMemRefToLLVMConversionPass
+    0.0000 (  0.0%)    (A) DataLayoutAnalysis
+    0.0003 (  1.8%)  ConvertMathToLLVMPass
+    0.0005 (  3.3%)  ArithToLLVMConversionPass
+    0.0003 (  2.2%)  ConvertControlFlowToLLVMPass
+    0.0006 (  3.7%)  ConvertFuncToLLVMPass
+    0.0000 (  0.1%)    (A) DataLayoutAnalysis
+    0.0004 (  2.5%)  ConvertIndexToLLVMPass
+    0.0003 (  1.7%)  UBToLLVMConversionPass
+    0.0002 (  1.4%)  ReconcileUnrealizedCastsPass
+    0.0009 (  5.7%)  Output
+    0.0027 ( 17.4%)  Rest
+    0.0154 (100.0%)  Total

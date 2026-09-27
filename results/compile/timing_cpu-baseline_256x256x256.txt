@@ -1,0 +1,41 @@
+===-------------------------------------------------------------------------===
+                         ... Execution time report ...
+===-------------------------------------------------------------------------===
+  Total Execution Time: 0.0062 seconds
+
+  ----Wall Time----  ----Name----
+    0.0002 (  4.0%)  Parser
+    0.0003 (  5.2%)  ConvertTForgeToLinalg
+    0.0002 (  2.6%)  CanonicalizerPass
+    0.0002 (  2.7%)  OneShotBufferizePass
+    0.0001 (  1.4%)  CanonicalizerPass
+    0.0000 (  0.4%)  BufferResultsToOutParamsPass
+    0.0000 (  0.5%)  ExpandReallocPass
+    0.0001 (  1.2%)  CanonicalizerPass
+    0.0001 (  1.7%)  OwnershipBasedBufferDeallocationPass
+    0.0001 (  1.4%)  CanonicalizerPass
+    0.0001 (  0.9%)  BufferDeallocationSimplificationPass
+    0.0001 (  0.9%)  LowerDeallocationsPass
+    0.0000 (  0.4%)  CSEPass
+    0.0000 (  0.0%)    (A) DominanceInfo
+    0.0001 (  1.6%)  CanonicalizerPass
+    0.0001 (  0.8%)  CanonicalizerPass
+    0.0002 (  2.9%)  ConvertLinalgToLoopsPass
+    0.0000 (  0.7%)  ExpandStridedMetadataPass
+    0.0000 (  0.6%)  LowerAffinePass
+    0.0001 (  1.4%)  SCFToControlFlowPass
+    0.0000 (  0.4%)  'func.func' Pipeline
+    0.0000 (  0.4%)    LLVMRequestCWrappersPass
+    0.0006 ( 10.4%)  FinalizeMemRefToLLVMConversionPass
+    0.0000 (  0.1%)    (A) DataLayoutAnalysis
+    0.0001 (  2.3%)  ConvertMathToLLVMPass
+    0.0002 (  4.0%)  ArithToLLVMConversionPass
+    0.0002 (  2.8%)  ConvertControlFlowToLLVMPass
+    0.0002 (  3.2%)  ConvertFuncToLLVMPass
+    0.0000 (  0.1%)    (A) DataLayoutAnalysis
+    0.0001 (  2.2%)  ConvertIndexToLLVMPass
+    0.0001 (  1.4%)  UBToLLVMConversionPass
+    0.0001 (  1.2%)  ReconcileUnrealizedCastsPass
+    0.0003 (  4.9%)  Output
+    0.0022 ( 35.8%)  Rest
+    0.0062 (100.0%)  Total
