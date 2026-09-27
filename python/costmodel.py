@@ -36,11 +36,13 @@ value cancels; CLOCK_MHZ is the typical median clock seen in Stages 7 and 8.
 
 import math
 
-SMS = 188
+import os
+
+SMS = int(os.environ.get("TF_GPU_SMS", "188"))
 FMA_PER_CYCLE = 128
 SMEM_WORDS_PER_CYCLE = 32
 LATENCY = 600
-DRAM_BW = 1530e9
+DRAM_BW = float(os.environ.get("TF_GPU_DRAM_BW", "1530e9"))
 CLOCK_MHZ = 2280
 
 

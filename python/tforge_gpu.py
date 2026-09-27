@@ -22,9 +22,11 @@ ROOT = tc.ROOT
 OPT = tc.OPT
 GPU_BENCH = tc.BUILD / "bin" / "tforge-gpu-bench"
 ART = tc.ART / "gpu"
-SM = "sm_120"
-SMS = 188
-FP32_LANES_PER_SM = 128  # KernelForge: 24064 CUDA cores / 188 SMs
+# Target GPU. Defaults: RTX PRO 6000 Blackwell (sm_120, 188 SMs; KernelForge).
+# E2 sets TF_GPU_ARCH=sm_86 TF_GPU_SMS=84 for the RTX A6000.
+SM = os.environ.get("TF_GPU_ARCH", "sm_120")
+SMS = int(os.environ.get("TF_GPU_SMS", "188"))
+FP32_LANES_PER_SM = 128  # Blackwell: 24064 CUDA cores / 188 SMs; GA102 (A6000): 128 per SM
 
 
 def fp32_peak_gflops(sm_mhz):
