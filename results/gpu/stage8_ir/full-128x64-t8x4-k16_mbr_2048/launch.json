@@ -1,0 +1,1 @@
+{"kernel": "entry_kernel", "grid": [32, 16, 1], "block": [16, 16, 1], "args": ["arg3", "arg0", "arg1", "arg2"], "padded": [2048, 2048, 2048]}

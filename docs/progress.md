@@ -1,6 +1,6 @@
 # TensorForge progress log
 
-Current state: Stage 7 complete. Next: Stage 8 (GPU memory hierarchy).
+Current state: Stage 8 complete. Next: Stage 9 (cost model versus autotuning).
 
 ## How to resume
 
@@ -43,6 +43,12 @@ Toolchain locations on Hive: micromamba at `~/.local/bin/micromamba` (root prefi
 | GPU backend: `opt -O3 -mcpu=sm_120`, `llc -fp-contract=fast`, `ptxas -O3` | Without `opt`, loads stayed generic and the accumulator was stored every K step; contraction gives FFMA (nvcc default) |
 | GPU runner built with nvcc and system GCC 11 | Runner links no MLIR; avoids nvcc/GCC 15 compatibility questions |
 | GPU clock-adjusted metric = % of FP32 peak at median NVML SM clock sampled per rep | KernelForge convention; per-rep sampling works for short runs |
+| Staged GPU kernels compiled for padded shapes; runner pads on device inside the timed region | Register tiles, promotion, and vectorization need static tiles; padding cost stays in the measurement |
+| Promotion = TensorForge `linalg.copy` into workgroup `alloc_tensor` + upstream `map_copy_to_threads` | Upstream `promote_tensor` materializes copies that cannot be distributed |
+| Accumulator hoisting on GPU: fold-memref-alias-ops + CSE, then upstream `hoistRedundantVectorTransfers` | Folding subviews removes the view-like source that blocks hoisting |
+| `align-vectors`: 16-byte alignment on `vector<4xf32>` global accesses when BK, BN, TN are multiples of 4 | Legal by construction (cudaMalloc alignment, padded row lengths, 128-bit copy distribution); gives LDG/STG.E.128 |
+| Default GPU config for later stages: `block-tile=128,64 thread-tile=8,4 tile-k=16 promote=1 vectorize=1` | Best or near-best at 1024^3 and above in the Stage 8 sweep |
+| Python drivers: 10-minute subprocess timeout | A pattern loop hung one compile; a hang now fails the step |
 
 ## Stage 0 report
 
@@ -80,10 +86,15 @@ Register tiling (6x16, K step 4) with peeling, vectorization to `vector.contract
 
 `--tforge-gpu-pipeline` compiles fused `relu(matmul + bias)` to an sm_120 kernel (Transform-dialect tiling and mapping, NVVM, `ptxas`), run through the CUDA driver API. 70/70 kernels correct (FP64 bound; max difference from cuBLAS 3.6e-4 at 4096^3). One output per thread: 2.3 to 3.6 TFLOP/s (about 3% of FP32 peak at median clock) vs cuBLAS 13 to 52 TFLOP/s (`results/gpu/stage7.csv`, commit 255fa32, job 24105050). Fixes on the way: self-copies from `parallel_insert_slice` (fixed with CSE), f32 constant kernel operands, `opt -O3` and FP contraction for the NVPTX backend. Details in `docs/stage7.md`.
 
+## Stage 8 report
+
+Staged GPU kernels (K loop, shared-memory promotion, per-thread register tiles, 128-bit accesses, accumulator hoisted into registers): fused `mbr` 41.6 TFLOP/s at 2048^3 (cuBLAS + epilogue 50.7, Triton fused 41.7), ahead of KernelForge v6 at every shape and 9% ahead of cuBLAS + epilogue at 777x1111x333. 112 TensorForge + 14 Triton + 14 KernelForge runs correct (`results/gpu/stage8*.csv`, `kernelforge_sgemm.csv`; commit dac1827). Shared memory without vectorization is slower than none (accumulator round-trips through global memory). Fixes on the way: a hung compile (pattern ordering), constant kernel operands, hoisting blocked by subviews. Details in `docs/stage8.md`.
+
 ## Open questions
 
 - CMake `ZLIB_LIBRARY` not found warning during configure (no effect so far).
 - Stage 2: the `+0.0` fold only recognizes a direct `relu` producer; a "never -0.0" analysis would cover more cases.
+- Stage 8: TensorForge reaches 37 to 38% of clock-adjusted peak at 2048^3 and 4096^3 vs 46 to 48% for Triton and cuBLAS; no software pipelining yet. Padding-copy share of time not measured separately.
 - Stage 6: vectorized `add` is 30 to 45% slower than NumPy at 1024x1024; cache tiles that are multiples of 6x16 were not swept.
 - Stage 5: fused variants are 7% slower than the baseline at 256^3 only; not explained.
 - Stage 4: scalar 512^3 kernels vary by up to 18% with output-buffer placement (446 vs 377 ms at 0 vs 16 byte offset); mechanism not attributed (no hardware counters).

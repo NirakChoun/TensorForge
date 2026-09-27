@@ -1,0 +1,6 @@
+ptxas info    : 0 bytes gmem
+ptxas info    : Compiling entry function 'entry_kernel' for 'sm_120'
+ptxas info    : Function properties for entry_kernel
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 88 registers, used 1 barriers, 12288 bytes smem
+ptxas info    : Compile time = 33.859 ms

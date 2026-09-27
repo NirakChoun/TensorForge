@@ -1,0 +1,6 @@
+      5 BAR.SYNC.DEFER
+    512 FFMA
+      4 LDG.E.128.CONSTANT
+     48 LDS.128
+      8 STG.E.128
+      3 STS.128
