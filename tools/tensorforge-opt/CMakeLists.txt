@@ -6,6 +6,7 @@ add_llvm_executable(tensorforge-opt tensorforge-opt.cpp)
 llvm_update_compile_flags(tensorforge-opt)
 
 target_link_libraries(tensorforge-opt PRIVATE
+  MLIRTForge
   ${dialect_libs}
   ${conversion_libs}
   ${extension_libs}

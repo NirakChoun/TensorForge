@@ -32,5 +32,7 @@ find_program(TF_LIT lit REQUIRED)
 set(LLVM_EXTERNAL_LIT ${TF_LIT} CACHE STRING "lit executable" FORCE)
 set(LLVM_LIT_ARGS "-sv" CACHE STRING "lit arguments")
 
+add_subdirectory(include)
+add_subdirectory(lib)
 add_subdirectory(tools)
 add_subdirectory(test)

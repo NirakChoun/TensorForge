@@ -9,6 +9,7 @@
 // DIALECTS-DAG: nvvm
 // DIALECTS-DAG: scf
 // DIALECTS-DAG: tensor
+// DIALECTS-DAG: tforge
 // DIALECTS-DAG: transform
 // DIALECTS-DAG: vector
 

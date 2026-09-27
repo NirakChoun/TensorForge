@@ -1,0 +1,8 @@
+#ifndef TENSORFORGE_DIALECT_TFORGE_TFORGEDIALECT_H
+#define TENSORFORGE_DIALECT_TFORGE_TFORGEDIALECT_H
+
+#include "mlir/IR/Dialect.h"
+
+#include "TensorForge/Dialect/TForge/TForgeOpsDialect.h.inc"
+
+#endif // TENSORFORGE_DIALECT_TFORGE_TFORGEDIALECT_H

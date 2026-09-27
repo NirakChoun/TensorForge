@@ -7,6 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "TensorForge/Dialect/TForge/TForgeDialect.h"
+
 #include "mlir/IR/DialectRegistry.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/InitAllDialects.h"
@@ -20,6 +22,7 @@ int main(int argc, char **argv) {
   mlir::DialectRegistry registry;
   mlir::registerAllDialects(registry);
   mlir::registerAllExtensions(registry);
+  registry.insert<mlir::tforge::TForgeDialect>();
 
   return mlir::asMainReturnCode(mlir::MlirOptMain(
       argc, argv, "TensorForge optimizer driver\n", registry));

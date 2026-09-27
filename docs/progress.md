@@ -1,13 +1,15 @@
 # TensorForge progress log
 
-Current state: Stage 0 complete. Next: Stage 1 (`tforge` dialect).
+Current state: Stage 1 complete. Next: Stage 2 (canonicalization).
 
 ## How to resume
 
 1. `ssh hive hostname` returns `login2`.
 2. `cd ~/TensorForge && git log --oneline -30 && git status`.
 3. `sacct -u $USER --starttime today` for unprocessed jobs; logs are in `~/TensorForge/logs/` (not committed).
-4. Build and test: `scripts/run_job.sh cpu env JOBS=8 scripts/build.sh` (one Slurm job at a time).
+4. Development runs inside one held allocation: `scripts/devjob.sh start cpu 12` (or `gpu`), then `scripts/in_job.sh <cmd>` (add `TF_BG=<name>` to run in the background with output in `logs/<name>.log`). `scripts/devjob.sh stop` when done. Only one Slurm job at a time.
+5. Build and test: `scripts/in_job.sh env JOBS=8 scripts/build.sh`, or `scripts/in_job.sh ninja -C build check-tensorforge`.
+6. Commit and push: `scripts/commit.sh "stageN: ..."` (refuses to commit build output; no trailers).
 
 Toolchain locations on Hive: micromamba at `~/.local/bin/micromamba` (root prefix `~/.mamba`), environment at `~/tforge-env`. `source scripts/env.sh` activates both it and `cuda/13.3.0`. Recreate the environment with `sbatch scripts/setup_env.sh`, then `sbatch scripts/build_lit_tools.sh`.
 
@@ -21,6 +23,8 @@ Toolchain locations on Hive: micromamba at `~/.local/bin/micromamba` (root prefi
 | Static link against MLIR libraries | Default of the conda package; simplest; 117 MB binary |
 | lit internal shell | lit 23 deprecates external-shell execution |
 | Builds and tests run in CPU Slurm jobs | Linking all of MLIR exceeds login-node etiquette |
+| One held allocation (`devjob.sh`) with `srun --overlap` steps | Avoids a queue wait per build while keeping one job at a time |
+| `tforge` operands typed `AnyTensor`, checks in C++ verifiers | Lets diagnostics name both shapes involved instead of generic ODS messages |
 
 ## Stage 0 report
 
@@ -29,6 +33,10 @@ Toolchain, `tensorforge-opt`, and lit infrastructure are in place; 2/2 lit tests
 Failures on the way: the first lit-tools build extracted only part of the LLVM source (fixed by extracting all of it); the first lit run used the deprecated external shell (fixed). The GitHub repository did not exist at session start; Nirak created it during the session.
 
 Commits: see `git log` (`stage0:` prefix).
+
+## Stage 1 report
+
+The `tforge` dialect (add, relu, matmul, bias_add) is defined with verifiers; 4/4 lit tests pass, including 18 rejected cases. Semantics in `docs/dialect.md`, report in `docs/stage1.md`. One test expectation was adjusted for MLIR 23's ODS wording ("any non-token type"). A TableGen doc string containing `}]` ended its code block early; reworded.
 
 ## Open questions
 
