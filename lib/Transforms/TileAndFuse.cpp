@@ -34,6 +34,7 @@ namespace mlir {
 namespace tforge {
 #define GEN_PASS_DEF_TFORGETILEANDFUSE
 #include "TensorForge/Passes.h.inc"
+void populateEpilogueIntoProducerInitPattern(RewritePatternSet &patterns);
 } // namespace tforge
 } // namespace mlir
 
@@ -230,3 +231,8 @@ struct TileAndFusePass
 };
 
 } // namespace
+
+void mlir::tforge::populateEpilogueIntoProducerInitPattern(
+    RewritePatternSet &patterns) {
+  patterns.add<EpilogueIntoProducerInit>(patterns.getContext());
+}

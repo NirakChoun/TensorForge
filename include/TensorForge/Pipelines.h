@@ -38,6 +38,24 @@ struct CpuPipelineOptions : public PassPipelineOptions<CpuPipelineOptions> {
       llvm::cl::init(false)};
 };
 
+struct GpuPipelineOptions : public PassPipelineOptions<GpuPipelineOptions> {
+  Option<bool> fuseElementwise{
+      *this, "fuse-elementwise",
+      llvm::cl::desc("Upstream elementwise fusion of the epilogue ops"),
+      llvm::cl::init(true)};
+  ListOption<int64_t> blockTile{*this, "block-tile",
+                                llvm::cl::desc("Block tile BM,BN (default 16,16)")};
+  ListOption<int64_t> threadTile{
+      *this, "thread-tile", llvm::cl::desc("Per-thread tile TM,TN (default 1,1)")};
+  Option<bool> printScript{
+      *this, "print-script",
+      llvm::cl::desc("Print the generated transform scripts to stderr"),
+      llvm::cl::init(false)};
+};
+
+std::string gpuPipelineString(const GpuPipelineOptions &options);
+void buildGpuPipeline(OpPassManager &pm, const GpuPipelineOptions &options);
+
 /// The CPU pipeline as a textual pass pipeline (module-anchored elements).
 std::string cpuPipelineString(const CpuPipelineOptions &options);
 void buildCpuPipeline(OpPassManager &pm, const CpuPipelineOptions &options);

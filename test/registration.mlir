@@ -17,6 +17,7 @@
 // PASSES-DAG: --canonicalize
 // PASSES-DAG: --convert-tforge-to-linalg
 // PASSES-DAG: --tforge-cpu-pipeline
+// PASSES-DAG: --tforge-gpu-pipeline
 // PASSES-DAG: --one-shot-bufferize
 // PASSES-DAG: --convert-linalg-to-loops
 // PASSES-DAG: --gpu-kernel-outlining

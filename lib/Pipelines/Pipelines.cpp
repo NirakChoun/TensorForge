@@ -116,7 +116,55 @@ void mlir::tforge::buildCpuPipeline(OpPassManager &pm,
   appendOrDie(pm, cpuPipelineString(options));
 }
 
+std::string mlir::tforge::gpuPipelineString(const GpuPipelineOptions &o) {
+  SmallVector<int64_t> bt(o.blockTile.begin(), o.blockTile.end());
+  SmallVector<int64_t> tt(o.threadTile.begin(), o.threadTile.end());
+  if (bt.empty())
+    bt = {16, 16};
+  if (tt.empty())
+    tt = {1, 1};
+  if (bt.size() != 2 || tt.size() != 2 || bt[0] % tt[0] || bt[1] % tt[1])
+    llvm::report_fatal_error("tforge-gpu-pipeline: block-tile and thread-tile "
+                             "need 2 values each, block a multiple of thread");
+  // Threads per block: x runs along N (contiguous in memory), y along M.
+  int64_t tx = bt[1] / tt[1], ty = bt[0] / tt[0];
+  std::string print = o.printScript ? " print-script=1" : "";
+  std::string p;
+  p += "convert-tforge-to-linalg,canonicalize,";
+  if (o.fuseElementwise)
+    p += "linalg-fuse-elementwise-ops,canonicalize,";
+  p += "func.func(tforge-gpu-tile{block-tile=" + joinSizes(bt) +
+       " thread-tile=" + joinSizes(tt) + print + "}),canonicalize,";
+  p += "eliminate-empty-tensors,";
+  p += "one-shot-bufferize{bufferize-function-boundaries=1 "
+       "function-boundary-type-conversion=identity-layout-map},canonicalize,";
+  // In-place parallel_insert_slice bufferizes to a copy between two identical
+  // subviews; CSE merges the subviews so canonicalize folds the self-copy.
+  p += "buffer-results-to-out-params{hoist-static-allocs=1 "
+       "modify-public-functions=1},cse,canonicalize,";
+  p += "func.func(tforge-gpu-map{block-dims=" + std::to_string(tx) + "," +
+       std::to_string(ty) + ",1" + print + "}),canonicalize,";
+  p += "convert-linalg-to-loops,canonicalize,";
+  p += "gpu-kernel-outlining,";
+  p += "expand-strided-metadata,lower-affine,convert-scf-to-cf,";
+  // Bare pointers: each memref kernel argument becomes one pointer, which the
+  // CUDA driver-API runner passes directly.
+  p += "gpu.module(convert-gpu-to-nvvm{use-bare-ptr-memref-call-conv=1}),"
+       "reconcile-unrealized-casts,";
+  p += "tforge-gpu-extract";
+  return p;
+}
+
+void mlir::tforge::buildGpuPipeline(OpPassManager &pm,
+                                    const GpuPipelineOptions &options) {
+  appendOrDie(pm, gpuPipelineString(options));
+}
+
 void mlir::tforge::registerTForgePipelines() {
+  PassPipelineRegistration<GpuPipelineOptions>(
+      "tforge-gpu-pipeline",
+      "Lower tforge to an NVVM kernel for sm_120 (see docs/stage7.md)",
+      buildGpuPipeline);
   PassPipelineRegistration<CpuPipelineOptions>(
       "tforge-cpu-pipeline",
       "Lower tforge to LLVM dialect for CPU execution (see docs/stage4.md)",

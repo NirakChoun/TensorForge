@@ -16,3 +16,7 @@ cmake -G Ninja -S . -B "$BUILD_DIR" \
   -DCMAKE_CXX_COMPILER="$CXX"
 ninja -C "$BUILD_DIR" -j "$JOBS" tensorforge-opt tforge-cpu-bench
 ninja -C "$BUILD_DIR" -j "$JOBS" check-tensorforge
+# The GPU runner needs nvcc (module cuda/13.3.0); skip it where CUDA is absent.
+if command -v nvcc >/dev/null 2>&1; then
+  scripts/build_gpu_runner.sh
+fi

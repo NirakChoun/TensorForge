@@ -1,6 +1,7 @@
 add_mlir_library(MLIRTForgeTransforms
   TileAndFuse.cpp
   Vectorize.cpp
+  Gpu.cpp
 
   DEPENDS
   MLIRTForgePassIncGen
@@ -19,4 +20,10 @@ add_mlir_library(MLIRTForgeTransforms
   MLIRVectorDialect
   MLIRVectorTransforms
   MLIRMemRefDialect
+  MLIRBufferizationDialect
+  MLIRGPUDialect
+  MLIRLLVMDialect
+  MLIRParser
+  MLIRTransformDialect
+  MLIRTransformDialectTransforms
 )
